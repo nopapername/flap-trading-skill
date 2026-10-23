@@ -1,0 +1,1 @@
+All development and tests MUST use FLAP_READ_ONLY=1. Never submit real wallet transactions, signatures, approvals, transfers, claims or change settings for tests. Use injected synthetic adapters. Never commit user state, personal addresses or credentials.

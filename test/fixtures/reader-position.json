@@ -1,0 +1,49 @@
+{
+  "synthetic": true,
+  "block": "0x64",
+  "time": "2000-01-01T00:00:00.000Z",
+  "reader": "0x18aa6c93f1887a243fdc348c9a77f5136555174a",
+  "market": "0x2222222222222222222222222222222222222222",
+  "wallet": "0x1111111111111111111111111111111111111111",
+  "marketCards": [
+    {
+      "market": "0x2222222222222222222222222222222222222222",
+      "quoteToken": "0x0000000000000000000000000000000000000000",
+      "name": "EXAMPLE",
+      "symbol": "EXAMPLE",
+      "meta": "",
+      "predictedToken": "0x4444444444444444444444444444444444444444",
+      "token": "0x0000000000000000000000000000000000000000",
+      "pair": "0x5555555555555555555555555555555555555555",
+      "phase": 1,
+      "poolRaw": "1000",
+      "capRaw": "5000",
+      "progressBps": "2000",
+      "buyCount": "1",
+      "sellCount": "0",
+      "curveH": "1000000",
+      "curveK": "1000000000"
+    }
+  ],
+  "userPosition": {
+    "shares": "1234500000000000000000000",
+    "claimableRaw": "0",
+    "remainingWalletShares": "100",
+    "cumulative": {
+      "buySpentRaw": "100000000000000001",
+      "buyShares": "1234500000000000000000000",
+      "sellReceivedRaw": "0",
+      "sellShares": "0",
+      "claimedShares": "0",
+      "buyCount": "1",
+      "sellCount": "0",
+      "claimCount": "0"
+    },
+    "statsComplete": true,
+    "eligibilityKnown": true,
+    "eligible": true,
+    "inventoryKnown": false,
+    "inventoryRaw": "0",
+    "inventoryEnough": false
+  }
+}
