@@ -1,6 +1,6 @@
 # Flap Trading Skill
 
-独立、可分发的社区 AI Skill，通过币安官方 Agentic Wallet 操作 BNB Chain 上的 Flap Agent 内盘。**不是币安或 Flap 官方产品。** 当前版本0.1.8，尚未以真实资金验证分发版本。
+独立、可分发的社区 AI Skill，通过币安官方 Agentic Wallet 操作 BNB Chain 上的 Flap Agent 内盘。**不是币安或 Flap 官方产品。** 当前版本0.1.9，尚未以真实资金验证分发版本。
 
 支持：预测 CA / 完整 CONFIG / Flap 链接解析；最高可买份额；原生 BNB 和 ERC20 内盘；经验证的已发行代币 BNB 直购；显式内盘卖出及代币→BNB 兑换；订单恢复；多市场持仓和资金成本对账。
 
@@ -32,7 +32,7 @@ node src/cli.mjs init --wallet YOUR_BNB_CHAIN_ADDRESS --budget 0.1 --slippage-bp
 - `confirm`：每笔需要用户确认后使用 `--live --confirm`。
 - `auto`：用户明确授权后，发送 CA/CONFIG 可在个人限额内自动买入。
 
-ERC20 自动兑换、已发行代币直接购买和审计不可用时继续交易，分别由 `--allow-quote-conversion`、`--allow-direct`、`--ack-audit-unavailable` 选择启用，未选择权限时均关闭；明确接受默认交易规则v2时，AI在首次设置中保存以上三项授权，无需逐项再次询问。已有策略不因升级改变。用户可设置更低限额；程序硬上限为每意图本金1BNB、滑点5%，Gas另计。不会自动加大滑点或反复补资金。详见[首次设置](setup.md)。
+ERC20 自动兑换、已发行代币直接购买和审计不可用时继续交易，分别由 `--allow-quote-conversion`、`--allow-direct`、`--ack-audit-unavailable` 选择启用，未选择权限时均关闭；明确接受默认交易规则v3时，AI在首次设置中保存以上三项及 `--auto-sale-to-bnb` 授权，无需逐项再次询问。已有策略不因升级改变。用户可设置更低限额；程序硬上限为每意图本金1BNB、滑点5%，Gas另计。不会自动加大滑点或反复补资金。详见[首次设置](setup.md)。
 
 ## 使用
 
@@ -99,7 +99,7 @@ GitHub Actions 模板见 [docs/github-actions-test.yml](https://github.com/nopap
 
 ## 连续卖出为 BNB
 
-用户单独授权 `automaticSaleConversion` 后，初始化时加 `--auto-sale-to-bnb`；已有策略只能在用户明确授权后修改此字段，不能因升级自动开启。`sell CONFIG --live --confirm --request ID [--resume]` 创建 SALE_BNB_V1 父请求，关联固定 SELL_V1／EXIT_V1 子请求。仅兑换当前卖出实际到账原始数量，交易前再次验证链上精度/余额，不调用 amount=all。每个必要合约预览及风险检查保留，代币字段在固定区块批量读取。
+用户接受默认规则v3或单独授权 `automaticSaleConversion` 后，初始化时加 `--auto-sale-to-bnb`；已有策略只能在用户明确授权后修改此字段，不能因升级自动开启。`sell CONFIG --live --confirm --request ID [--resume]` 创建 SALE_BNB_V1 父请求，关联固定 SELL_V1／EXIT_V1 子请求。仅兑换当前卖出实际到账原始数量，交易前再次验证链上精度/余额，不调用 amount=all。每个必要合约预览及风险检查保留，代币字段在固定区块批量读取。
 
 查询 `recover PARENT_ID` 只读确认子阶段；下一步尚未提交时，同一请求 `sell ... --resume` 连续完成。PREPARING 且无提交标记可以显式恢复；UNKNOWN/PENDING 不可重发。卖出成功但兑换失败时，报告实际保留资产并刷新持仓，不能把整次流程说成未卖出。
 

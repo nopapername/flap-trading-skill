@@ -23,3 +23,11 @@ test('crash before conversion submission resumes only the exact frozen exit chil
  await assert.rejects(engine.sell(config,{requestId:'pre-exit',live:true}),/interrupted/);const r=await engine.recover('pre-exit');assert.equal(r.stage,'EXIT_READY');const done=await engine.sell(config,{requestId:'pre-exit',live:true,resume:true});assert.equal(done.status,'FINISHED');assert.equal(counts.sale,1);assert.equal(counts.exit,1);
 }));
 test('initial native proof with mismatched Gas does not realize a false profit',()=>fixture(async({engine,counts})=>{engine.proveNative=async()=>({actualOutputWei:'1500',gasWei:'11',proof:{block:'100',blockHash:'h'}});const o=await engine.sell({...config,POOL_TYPE:'NATIVE_BNB',QUOTE_TOKEN:ZERO},{requestId:'native-mismatch',live:true});assert.equal(o.status,'FINISHED');assert.equal(o.actual.actualOutputWei,null);assert.equal(o.actual.realizedPnlWei,null);assert.equal(counts.exit,0);}));
+
+test('pre-existing quote inventory survives completed sale conversion and replay',()=>fixture(async({engine,counts})=>{
+ const prior=7777777n;let balance=prior;const sell=engine.seller.sell,exit=engine.exiter.exit;
+ engine.seller.sell=async(...args)=>{const result=await sell(...args);if(result.status==='FINISHED')balance+=BigInt(result.actual.quoteReceivedRaw);return result;};
+ engine.exiter.exit=async(...args)=>{const result=await exit(...args);balance-=BigInt(result.actual.actualSpentRaw);return result;};
+ const result=await engine.sell(config,{requestId:'inventory-preserved',live:true});assert.equal(result.status,'FINISHED');assert.equal(balance,prior);assert.equal(result.actual.convertedQuoteRaw,'1234567');
+ await engine.recover('inventory-preserved');await engine.sell(config,{requestId:'inventory-preserved',live:true});assert.equal(balance,prior);assert.equal(counts.sale,1);assert.equal(counts.exit,1);
+}));

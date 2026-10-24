@@ -1,3 +1,11 @@
+# Validation — v0.1.9
+
+Default trading rules v3 adds --auto-sale-to-bnb after an explicit human sell request, using existing SALE_BNB_V1 execution and recovery. Earlier/custom policies do not gain conversion permissions on upgrade. Reporting instructions require fresh wallet balances, all current holdings and applicable actual PnL after every completed trade; unavailable evidence stays unknown and buy valuation is not realized profit.
+
+Source and clean installed artifact suites: **240/240** each. Packaged first-use acceptance: **22/22**, walletMutations=0. Added coverage verifies exact sale proceeds conversion leaves pre-existing quote inventory unchanged even after duplicate/recovery replay. First-use v3 permission mapping retains separate explicit sell confirmation and no automatic sale timing/claim. Detached portfolio-worker integration verifies current BNB balance, holdings/PnL columns and receipt-bound block in CLI text plus saved snapshot. Existing tests cover sale/conversion interruption, partial dust without retry and evidence-bounded realized PnL.
+
+Skill validation, release scan (86 files), artifact/source byte comparison (87 files) passed. All implementation/testing used `FLAP_READ_ONLY=1` with synthetic execution adapters and local read-only RPC/wallet fixtures. No real login, wallet settings change, signature, approval, sale, swap or trade. Documentation-to-flags mapping is explicit fixture setup, not an independent AI-client conversation or real-funds execution test. Reporting of other quote balances still requires verified read-only chain evidence; ledger balances are not claimed as current wallet holdings.
+
 # Validation — v0.1.8
 
 Default trading rules v2 maps explicitly accepted audit-unavailable continuation to existing --ack-audit-unavailable. This changes the documented profile, not the execution engine or implicit policy defaults. Existing v1/custom policies remain unchanged.

@@ -1,3 +1,9 @@
+# 0.1.9
+
+- Default trading rules v3 explicitly includes current-sale-proceeds-only conversion to BNB after a human sell request, via existing --auto-sale-to-bnb; pre-existing quote inventory and earlier policies remain unchanged.
+- Require each completed trade report to include fresh wallet balance, all current holdings and applicable realized PnL with snapshot time. Unknown cost/proceeds stay unknown; unrealized buy valuation is not actual profit.
+- Extend first-use permission checks and regression coverage for pre-existing quote inventory across sale conversion and duplicate replay. Reuse the existing durable sale/conversion engines; no real transactions during validation.
+
 # 0.1.8
 
 - Default trading rules v2, when explicitly selected, include standing acknowledgment to continue buying when audit data is unavailable, without another confirmation. Map it to the existing --ack-audit-unavailable flag; disclose missing data rather than inventing a risk rating.

@@ -60,7 +60,10 @@ test('real detached readonly worker and CLI job query complete with a new empty 
   const until=Date.now()+10000;do{current=await readJob(dir,job.id);if(['FAILED','COMPLETED'].includes(current.status))break;await new Promise(r=>setTimeout(r,25));}while(Date.now()<until);
   assert.equal(current.status,'COMPLETED',current.error);
   const {stdout}=await promisify(execFile)(process.execPath,['src/cli.mjs','portfolio-job',job.id,'--data-dir',dir,'--json'],{env:{...process.env,FLAP_READ_ONLY:'1'}});
-  assert.equal(JSON.parse(stdout).wallet,wallet);assert.deepEqual(JSON.parse(stdout).rows,[]);
+  assert.equal(JSON.parse(stdout).wallet,wallet);assert.deepEqual(JSON.parse(stdout).rows,[]);assert.equal(JSON.parse(stdout).balance,'0');
+  const rendered=(await promisify(execFile)(process.execPath,['src/cli.mjs','portfolio-job',job.id,'--data-dir',dir],{env:{...process.env,FLAP_READ_ONLY:'1'}})).stdout;
+  assert.match(rendered,/可用 BNB：0/);assert.match(rendered,/持仓余额/);assert.match(rendered,/净盈亏/);assert.match(rendered,/区块 100/);
+  const saved=await readFile(join(dir,'portfolio-latest.md'),'utf8');assert.match(saved,/可用 BNB：0/);assert.match(saved,/持仓余额/);
  }finally{if(old===undefined)delete process.env.FLAP_RPC_URL;else process.env.FLAP_RPC_URL=old;server.closeAllConnections();await new Promise(r=>server.close(r));}
 }));
 

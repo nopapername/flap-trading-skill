@@ -31,7 +31,7 @@ async function outcome(operation,requestId,wallet){
 }
 async function main(){
  if(Number(process.versions.node.split('.')[0])<22)throw new Error('Node.js >=22 required');
- if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.8 (Node >=22; chain56)
+ if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.9 (Node >=22; chain56)
 node src/cli.mjs init --wallet ADDRESS --budget BNB --slippage-bps 100 --mode read-only|confirm|auto
   [--allow-quote-conversion] [--allow-direct] [--ack-audit-unavailable] [--auto-sale-to-bnb]
 node src/cli.mjs doctor
