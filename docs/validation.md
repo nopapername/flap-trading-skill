@@ -1,3 +1,9 @@
+# Validation — v0.1.7
+
+Explicitly selected default trading rules profile is mapped by the Skill to existing quote-conversion/direct flags; audit-unavailable stop and unselected sale/claim permissions remain unchanged. The README short prompt retains personal budget, slippage and automatic CONFIG-buy authorization. No engine or stored-policy defaults changed.
+
+Clean tarball installed with offline locked dependencies and lifecycle scripts disabled: **239/239** tests passed, including first-use fixtures, permission decisions, budget/slippage enforcement and fake adapter continuity. Skill validation and source scan passed (86 files); packaged bytes match source. All checks used `FLAP_READ_ONLY=1`. No real authentication, wallet setting change or trade; natural-language profile selection was reviewed in instructions, not independently tested in another AI client.
+
 # Validation — v0.1.6
 
 Onboarding documentation update: README combines installation and first configuration into one editable user message; SKILL/setup reuse explicit rules and ask only for missing choices. No transaction logic or permission defaults changed; CLI version metadata updated.

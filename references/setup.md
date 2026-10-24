@@ -4,6 +4,16 @@
 
 收到请求就提取用户实际给出的预算、滑点、模式、底池兑换、直购及审计选择；在钱包核实前暂存这些选择，不提前绑定或执行交易。仅阅读文档中的示例不算授权。
 
+## 默认交易规则（v1）
+
+用户明确说“按默认交易规则设置”，表示接受下面的首次设置组合；无需逐项再次确认：
+
+- 允许在用户本金预算内为购买兑换支付币，最多兑换一次；允许经验证的已发行代币用 BNB 直购。
+- 审计不可用就停止；不自动开放审计豁免、卖出后换币、自动卖出或 claim。
+- 已明确的预算、滑点和模式直接复用，缺失的必要选择才合并询问；预算和自动买入模式不能仅从“默认规则”推断。
+
+将该选择映射为 `--allow-quote-conversion --allow-direct`，不添加 `--ack-audit-unavailable` 或 `--auto-sale-to-bnb`。用户明确的“不允许”等覆盖此组合。该组合只供用户选择，不因安装、阅读示例、已有作者授权或本说明更新而生效；未选择时沿用未开放的默认权限，不覆盖已有 policy。后续规则调整不能追溯扩大已保存授权。
+
 ## 安装（首次或缺少依赖时）
 
 1. 确定当前 AI 客户端的 Skill 目录。Codex 通常为 `~/.codex/skills/flap-trading`，Claude Code 为 `~/.claude/skills/flap-trading`；若客户端有官方 Skill 安装器，优先使用。优先安装最新稳定 Release；使用安装器时选择该版本的 ref，而非未发布代码。下载整个公开仓库/版本包，不能只安装 SKILL.md。不要覆盖已有安装或用户状态；升级用独立目录检查后切换，状态目录保持不变。
@@ -23,7 +33,7 @@
 
 可以给一段可修改的回复模板，但示例不等于授权。例如“每笔最多0.1 BNB、滑点1%，发送CONFIG自动买入，允许底池兑换和已发行直购；审计不可用就停止”。用户已有明确选择时不重复问。新的配置只授权这个用户，不读取作者的 policy.json。
 
-将确认过的值映射为 `init --wallet ADDRESS --budget BNB --slippage-bps BPS --mode auto|confirm|read-only`，仅在对应选择为允许时添加 `--allow-quote-conversion`、`--allow-direct`、`--auto-sale-to-bnb`、`--ack-audit-unavailable`。每个执行参数必须有用户授权依据。模式和可选权限默认不开放；不能为了省事全选。
+将确认过的值映射为 `init --wallet ADDRESS --budget BNB --slippage-bps BPS --mode auto|confirm|read-only`，仅在对应选择为允许时添加 `--allow-quote-conversion`、`--allow-direct`、`--auto-sale-to-bnb`、`--ack-audit-unavailable`。每个执行参数必须有用户授权依据。模式和可选权限在未被用户选择时不开放；用户明确选择上述默认组合时按该组合保存，不能为了省事全选。
 
 `init` 不覆盖已有 policy。已设置时核对现有授权，只处理用户明确要求的变化；不要每次 CONFIG 重做安装/登录/设置。用户安装后可能需要重载 Skill 列表，说明它将在客户端重载后可用。
 

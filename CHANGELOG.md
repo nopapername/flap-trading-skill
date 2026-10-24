@@ -1,3 +1,9 @@
+# 0.1.7
+
+- Shorten onboarding by offering an explicitly selected default trading rules profile: budget-bound quote funding and verified BNB direct buying, audit-unavailable stop, reuse of already stated choices.
+- Map the chosen profile to existing finite policy flags. Installation alone never enables permissions; explicit opt-outs prevail, existing policies remain unchanged, and budget/slippage/auto-buy authorization are still required.
+- Instruction-only change plus version metadata; no transaction engine or permission-default changes. Read-only fixture validation only.
+
 # 0.1.6
 
 - Merge installation and initial configuration into one editable user prompt; continue through dependency checks, wallet connection and authorized policy persistence without asking users to repeat rules.

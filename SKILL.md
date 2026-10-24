@@ -3,7 +3,7 @@ name: flap-trading
 description: Use when a user wants to install Flap Trading, set up automatic CONFIG buying, or sends a Flap predicted token address, market CONFIG or agent bonding curve link to buy, query or recover a transaction on BNB Chain.
 metadata:
   author: nopapername
-  version: 0.1.6
+  version: 0.1.7
 ---
 
 # Flap Trading
@@ -16,7 +16,7 @@ metadata:
 
 用户已在安装消息中明确的规则不要求复述或二次确认；只合并询问缺失选择，并等待必要的 App 扫码/开发者模式操作。钱包验证前不写入绑定授权。设置完成后简短展示完整钱包地址、预算、滑点、自动模式及可选权限，告诉用户直接发送 CONFIG；不购买文档示例。
 
-首次必须得到这个用户自己的预算、滑点和模式选择。自动模式应明确包含“以后发送 CONFIG／预测 CA 即买入”；其他底池兑换、已发行代币直购和审计不可用时继续交易分别由用户选择。用 `init` 保存实际授权，不把文档示例或作者权限当成授权。用户未授权自动模式时，先查询或确认。测试/验收始终使用 `FLAP_READ_ONLY=1`，只用模拟执行工具。
+首次必须得到这个用户自己的预算、滑点和模式选择。自动模式应明确包含“以后发送 CONFIG／预测 CA 即买入”；其他底池兑换、已发行代币直购可由用户分别选择，或明确接受 setup 中的“默认交易规则（v1）”组合；该组合允许预算内换币及经验证的 BNB 直购，审计不可用停止，已明确规则不重复问。仅安装不算接受组合；审计豁免和卖出后换币仍需单独授权。用 `init` 保存实际授权，不把文档示例或作者权限当成授权。用户未授权自动模式时，先查询或确认。测试/验收始终使用 `FLAP_READ_ONLY=1`，只用模拟执行工具。
 
 ## 日常：收到 CONFIG／预测 CA
 
