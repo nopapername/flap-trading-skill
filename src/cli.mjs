@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 import {readFile,writeFile,mkdir,rename} from 'node:fs/promises';
 import {join,resolve} from 'node:path';import {randomUUID} from 'node:crypto';
-import {address,json,formatUnits,parseUnits} from './core.mjs';import {Rpc} from './rpc.mjs';import {Baw} from './wallet.mjs';import {Ledger} from './ledger.mjs';
+import {address,json,formatUnits,parseUnits,fingerprint} from './core.mjs';import {Rpc} from './rpc.mjs';import {Baw} from './wallet.mjs';import {Ledger} from './ledger.mjs';
+import {reconcileHistory} from './history.mjs';
 import {reconcileAccounts} from './accounts.mjs';
 import {stateDirectory,initializePolicy,loadPolicy,authorizeTrade,requestIdentity} from './policy.mjs';
 import {resolveInput} from './resolver.mjs';import {inspectRoute} from './route.mjs';
 import {Trader} from './trader.mjs';import {QuoteTrader} from './quote-trader.mjs';import {QuoteAdapter} from './quote-adapter.mjs';import {DexTrader} from './dex-trader.mjs';
 import {ExitTrader} from './exit-trader.mjs';
 import {SellTrader} from './sell-trader.mjs';import {SellAdapter} from './sell-adapter.mjs';
-import {loadPortfolio,renderPortfolio} from './portfolio.mjs';import {reconcileSettlement} from './settlement.mjs';
+import {loadPortfolio,renderPortfolio,partitionPortfolio} from './portfolio.mjs';import {reconcileSettlement} from './settlement.mjs';
 const args=process.argv.slice(2),cmd=args.shift()||'help';
 const opt=(n,d)=>{const i=args.indexOf('--'+n);if(i<0)return d;if(!args[i+1]||args[i+1].startsWith('--'))throw new Error('Missing --'+n+' value');return args[i+1];};
 const flag=n=>args.includes('--'+n),dir=resolve(opt('data-dir',stateDirectory())),emit=x=>console.log(json(x));
@@ -16,12 +17,12 @@ async function save(name,value){await mkdir(dir,{recursive:true,mode:0o700});con
 async function report(rpc,ledger,wallet){
  const state=await ledger.read(),s=await loadPortfolio(rpc,state,wallet);s.wallet=wallet;s.balance=BigInt(await rpc.result('eth_getBalance',[wallet,s.block]));
  s.accounts=reconcileAccounts(state,wallet);s.quoteFundingBalances=state.quoteFundingBalances||{};s.cashSettlements=state.cashSettlements||[];
- await save('portfolio-latest.json',s);await writeFile(join(dir,'portfolio-latest.md'),renderPortfolio(s.rows,{...s,wallet}),{mode:0o600});
- if(flag('json'))emit(s);else{console.log(renderPortfolio(s.rows,{...s,wallet}));if(Object.values(s.quoteFundingBalances).some(x=>BigInt(x.quantityRaw)>0n))console.log('Separate quote-token funding balances remain; see portfolio --json. They are not market-token holdings.');}
+ await save('portfolio-latest.json',s);await writeFile(join(dir,'portfolio-latest.md'),renderPortfolio(s.rows,{...s,wallet,detail:flag('detail')}),{mode:0o600});
+ if(flag('json'))emit(s);else{console.log(renderPortfolio(s.rows,{...s,wallet,detail:flag('detail')}));if(Object.values(s.quoteFundingBalances).some(x=>BigInt(x.quantityRaw)>0n))console.log('Separate quote-token funding balances remain; see portfolio --json. They are not market-token holdings.');}
 }
 async function main(){
  if(Number(process.versions.node.split('.')[0])<22)throw new Error('Node.js >=22 required');
- if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.1 (Node >=22; chain56)
+ if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.2 (Node >=22; chain56)
 node src/cli.mjs init --wallet ADDRESS --budget BNB --slippage-bps 100 --mode read-only|confirm|auto
   [--allow-quote-conversion] [--allow-direct] [--ack-audit-unavailable]
 node src/cli.mjs doctor
@@ -35,6 +36,7 @@ node src/cli.mjs operations
 node src/cli.mjs recover ID [--tx HASH] [--order-id ID]
 node src/cli.mjs portfolio [--json] [--offline]
 node src/cli.mjs accounts
+node src/cli.mjs reconcile-history [--apply]
 node src/cli.mjs reconcile EVIDENCE_JSON
 All commands accept --data-dir DIR. Default state: FLAP_HOME or user data directory.
 FLAP_READ_ONLY=1 unconditionally blocks writes to the wallet. Reads update local state only.
@@ -57,8 +59,9 @@ Sell returns the market quote asset; no implicit conversion, claim or route chan
  }
  if(cmd==='portfolio'&&flag('offline')){
   let s;try{s=JSON.parse(await readFile(join(dir,'portfolio-latest.json'),'utf8'));}catch{throw new Error('No saved portfolio snapshot; refresh first');}
-  for(const row of s.rows)for(const k of ['shares','tokens','cost','value','pnl','exitGasWei','sellWei'])if(row[k]!=null)row[k]=BigInt(row[k]);
-  if(flag('json'))emit(s);else console.log('Saved offline snapshot\n'+renderPortfolio(s.rows,{...s,balance:BigInt(s.balance)}));return;
+  for(const row of [...s.rows,...(s.historyRows||[])])for(const k of ['shares','tokens','cost','value','pnl','exitGasWei','sellWei','realized','recordedBuyCost'])if(row[k]!=null)row[k]=BigInt(row[k]);
+  Object.assign(s,partitionPortfolio([...s.rows,...(s.historyRows||[])]));
+  if(flag('json'))emit(s);else console.log('Saved offline snapshot\n'+renderPortfolio(s.rows,{...s,balance:BigInt(s.balance),detail:flag('detail')}));return;
  }
  const policy=await loadPolicy(dir),wallet=address(policy.wallet),ledger=new Ledger(join(dir,'ledger.json')),onEvent=x=>console.error(json(x));
  const quoteAdapter=new QuoteAdapter({rpc,baw,onEvent,allowQuoteConversion:policy.automaticQuoteConversion===true,allowUnavailableAudit:policy.auditUnavailableAcknowledged===true});
@@ -67,6 +70,13 @@ Sell returns the market quote asset; no implicit conversion, claim or route chan
  const exiter=new ExitTrader({rpc,baw,ledger,expectedWallet:wallet});
  const seller=new SellTrader({adapter:new SellAdapter({rpc,baw}),ledger,expectedWallet:wallet,onEvent});
  if(cmd==='accounts'){const a=reconcileAccounts(await ledger.read(),wallet);await save('accounts-latest.json',a);emit(a);return;}
+ if(cmd==='reconcile-history'){
+  await ledger.withLock('wallet:56:'+wallet,async()=>{
+   const before=await ledger.read(),result=await reconcileHistory(rpc,before,wallet);
+   if(flag('apply'))await ledger.update(s=>{if(fingerprint(s)!==fingerprint(before))throw Error('Ledger changed during history verification');Object.assign(s,result.state);});
+   await save('history-reconciliation-latest.json',{...result.report,applied:flag('apply'),time:new Date().toISOString()});emit({...result.report,applied:flag('apply')});
+  });return;
+ }
  if(cmd==='operations'){emit(Object.entries((await ledger.read()).operations).map(([id,o])=>({id,workflow:o.workflow,status:o.status,stage:o.stage,market:o.config?.MARKET||o.prepared?.config?.MARKET,txHash:o.txHash||o.currentLeg?.result?.txHash,orderId:o.orderId||o.currentLeg?.result?.orderId})));return;}
  if(cmd==='portfolio'){await report(rpc,ledger,wallet);return;}
  if(cmd==='recover'){
