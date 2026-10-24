@@ -1,3 +1,9 @@
+# 0.1.8
+
+- Default trading rules v2, when explicitly selected, include standing acknowledgment to continue buying when audit data is unavailable, without another confirmation. Map it to the existing --ack-audit-unavailable flag; disclose missing data rather than inventing a risk rating.
+- Preserve concrete risk/tax/available-audit validation, simulations, funding limits and unknown-operation recovery. Existing v1 or custom policies never gain permissions merely by upgrading.
+- Instruction/profile update with version metadata; no execution engine or underlying permission-default changes. No real trades during validation.
+
 # 0.1.7
 
 - Shorten onboarding by offering an explicitly selected default trading rules profile: budget-bound quote funding and verified BNB direct buying, audit-unavailable stop, reuse of already stated choices.

@@ -1,3 +1,11 @@
+# Validation — v0.1.8
+
+Default trading rules v2 maps explicitly accepted audit-unavailable continuation to existing --ack-audit-unavailable. This changes the documented profile, not the execution engine or implicit policy defaults. Existing v1/custom policies remain unchanged.
+
+Clean installed tarball suite **239/239**. Additional isolated CLI/policy/audit smoke checks **7/7**: persist the v2 flags, allow missing audit and unavailable service, disclose absent evidence without a risk rating, block actual risk hits/high risk/abnormal tax/unreadable available audit, retain read-only execution block, and keep old unacknowledged policies unchanged and blocked on missing audit. No real wallet commands in the smoke checks. Profile-to-CLI mapping is explicit test setup, not an independent natural-language conversation test.
+
+Skill validation, release scan (86 files), source/artifact byte comparison passed. All tests used `FLAP_READ_ONLY=1` with injected fetch/wallet fixtures; no real login, approvals, signatures or trades. No claim of guaranteed real-funds execution or latency.
+
 # Validation — v0.1.7
 
 Explicitly selected default trading rules profile is mapped by the Skill to existing quote-conversion/direct flags; audit-unavailable stop and unselected sale/claim permissions remain unchanged. The README short prompt retains personal budget, slippage and automatic CONFIG-buy authorization. No engine or stored-policy defaults changed.
