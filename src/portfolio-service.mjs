@@ -14,7 +14,7 @@ export async function refreshPortfolio({dir,rpc,ledger,wallet,minimumBlock=0n,re
   s.wallet=wallet;s.balance=BigInt(await rpc.result('eth_getBalance',[wallet,s.block]));
   s.historyReconciliation=repair.report.status==='not-needed'?state.historyReconciliation?.[wallet]||repair.report:repair.report;
   if(repair.report.status!=='not-needed')await saveStateFile(dir,'history-reconciliation-latest.json',repair.report);
-  s.saleSettlements=state.saleSettlements||[];s.currentSale=state.operations[requestId]?.workflow==='SALE_BNB_V1'?state.operations[requestId].actual:null;s.accounts=reconcileAccounts(state,wallet);s.quoteFundingBalances=state.quoteFundingBalances||{};s.cashSettlements=state.cashSettlements||[];
+  s.saleSettlements=state.saleSettlements||[];s.currentSale=state.operations[requestId]?.workflow==='SALE_BNB_V1'?state.operations[requestId].actual:state.operations[requestId]?.workflow==='EXIT_V1'?state.operations[requestId].actual?.marketSale??null:null;s.accounts=reconcileAccounts(state,wallet);s.quoteFundingBalances=state.quoteFundingBalances||{};s.cashSettlements=state.cashSettlements||[];
   await saveStateFile(dir,'portfolio-latest.json',s);await saveStateFile(dir,'portfolio-latest.md',renderPortfolio(s.rows,{...s,wallet})+(s.currentSale?'\n\n'+renderSaleResult(s.currentSale,{name:[...s.rows,...s.historyRows].find(r=>r.key===s.currentSale.market)?.name}):''),{text:true});return s;
  },{waitMs:300000});
 }

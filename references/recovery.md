@@ -17,3 +17,11 @@ If the statistics worker exited or RPC recovered, use `portfolio-job ID --resume
 ## SALE_BNB_V1
 
 Always recover the parent ID. Read-only recovery settles linked sale/exit receipts but never submits an unstarted leg. After recovery shows PREPARING/EXIT_READY (or a provably unsubmitted PREPARING child), explicitly continue the same parent via `sell INPUT --live --confirm --request SAME_ID --resume`. An unknown/submitting leg is never replayed. A failed conversion preserves the confirmed sale, actual quote receipt and clear error; a fresh financial attempt needs a new explicit human instruction. Background portfolio/native-proof tasks can resume independently. Native proof repair checks original canonical block/hash/Gas; re-inclusion mismatches remain unknown.
+
+## Graduated market sells
+
+`sell CONFIG` inspects phase only for new requests. Deployed actual wallet tokens are frozen into a market-bound EXIT_V1 (exact raw amount, decimals, percentage and original CONFIG). Pending/unknown exits never switch back to internal sale or sell a newly increased balance. Use `recover ID --order-id REAL_ID [--tx HASH]` first; resume a provably unsubmitted PREPARING exit with the same CONFIG, percentage, slippage and ID via `sell ... --resume`. Missing order identity stays unknown, not a fresh order. Legacy SELL_V1/SALE_BNB_V1 requests keep their original route.
+
+A pinned claimableProbe distinguishes actual claimable tokens from historical HELD_SHARES. BLOCKED_CLAIM_STATUS reports missing claim evidence, never assumes claimable quantity. BLOCKED_UNCLAIMED is a read-only prompt, not a submitted or pending trade. No claim is executed. Mixed positions sell only actual wallet tokens; unclaimed shares remain untouched. Unimported claim/basis evidence or unproven extra approval Gas keeps actual PnL unknown. Completed market exits enqueue the same read-only wallet/holdings/current-sale report.
+
+Graduated EXIT native proceeds missing at confirmation can be repaired by later read-only portfolio refresh. Canonical block/hash/Gas must still match. Repairs update the operation, current-sale summary, cash settlement and matching token ledger sale atomically; unproven extra approval Gas keeps net PnL unknown.

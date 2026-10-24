@@ -3,6 +3,21 @@ const defaultArchive=rpc=>createArchiveRpc(rpc,{urls:archiveURLs(process.env.FLA
 // Bounded readonly proof repair, outside the financial queue. No execution engines.
 export async function reconcileSaleProceeds({rpc,ledger,wallet,prove=proveNativeProceeds,createArchive=defaultArchive}){
  const state=await ledger.read();let archive;
+ for(const [id,p]of Object.entries(state.operations).filter(([,p])=>p.workflow==='EXIT_V1'&&p.saleContext&&p.actual?.marketSale&&p.wallet===wallet&&p.status==='FINISHED'&&p.actual.actualOutputWei==null).slice(-8)){
+  try{
+   archive??=await createArchive(rpc);const a=p.actual,hash=a.nativeProof?.blockHash;if(!hash)continue;
+   const proof=await prove(archive,a.txHash,{wallet,from:wallet,value:0,notBefore:p.submittedAt});
+   if(proof?.actualOutputWei==null||BigInt(proof.proof.block)!==BigInt(a.block)||proof.proof.blockHash!==hash||proof.gasWei!==a.gasWei)continue;
+   await ledger.update(s=>{
+    const op=s.operations[id];if(op.status!=='FINISHED'||op.actual.txHash!==a.txHash||op.actual.actualOutputWei!=null)return;
+    const output=BigInt(proof.actualOutputWei),m=op.actual.marketSale;
+    Object.assign(m,{actualOutputWei:output.toString(),nativeProof:proof.proof,realizedPnlWei:m.gasComplete===true&&m.costWei!=null?(output-BigInt(m.saleGasWei)-BigInt(m.exitGasWei)-BigInt(m.costWei)).toString():null});
+    Object.assign(op.actual,{actualOutputWei:output.toString(),nativeProof:proof.proof});
+    const cash=(s.cashSettlements||[]).find(x=>x.txHash===a.txHash);if(cash)Object.assign(cash,{actualOutputWei:output.toString(),nativeProof:proof.proof,marketSale:m});
+    const trade=s.trades.find(t=>t.kind==='sell'&&t.asset==='tokens'&&t.key===m.market&&t.txHash===a.txHash);if(trade)Object.assign(trade,{receivedWei:output.toString(),proceedsUnknown:m.gasComplete!==true});
+   });
+  }catch{/* Preserve unknowns on missing or conflicting canonical evidence. */}
+ }
  for(const [id,p]of Object.entries(state.operations).filter(([,p])=>p.workflow==='SALE_BNB_V1'&&p.wallet===wallet&&p.status==='FINISHED'&&p.actual?.actualOutputWei==null).slice(-8)){
   try{
    archive??=await createArchive(rpc);const child=state.operations[p.actual.exitHash?p.exitId:p.saleId];if(!child)continue;

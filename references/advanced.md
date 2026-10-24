@@ -1,6 +1,6 @@
 # Flap Trading Skill
 
-独立、可分发的社区 AI Skill，通过币安官方 Agentic Wallet 操作 BNB Chain 上的 Flap Agent 内盘。**不是币安或 Flap 官方产品。** 当前版本0.1.9，尚未以真实资金验证分发版本。
+独立、可分发的社区 AI Skill，通过币安官方 Agentic Wallet 操作 BNB Chain 上的 Flap Agent 内盘。**不是币安或 Flap 官方产品。** 当前版本0.1.10，尚未以真实资金验证分发版本。
 
 支持：预测 CA / 完整 CONFIG / Flap 链接解析；最高可买份额；原生 BNB 和 ERC20 内盘；经验证的已发行代币 BNB 直购；显式内盘卖出及代币→BNB 兑换；订单恢复；多市场持仓和资金成本对账。
 
@@ -70,7 +70,7 @@ node src/cli.mjs sell market.config --share-bps 10000 --live --confirm --request
 node src/cli.mjs exit QUOTE_OR_ACTUAL_TOKEN_CA --amount all --live --confirm --request MY_EXIT_ID
 ```
 
-内盘卖出返回市场支付资产；ERC20→BNB 是独立的显式兑换。不会自动卖出、领取、清理尾差或在资金兑换后更换场所。阶段3尚未领取的份额须另行处理，本版不执行 claim。
+`sell CONFIG` 自动识别内外盘。内盘按策略返回支付资产或只兑换本次所得为BNB；阶段3核对实际代币身份、代码、链上余额和精度后，按 `--share-bps` 指定比例卖出实际代币为BNB（向下取整，默认全部）。领取状态以固定区块claimableProbe为准，历史HELD_SHARES不冒充可领取数量；领取状态不可读时明确标未知。未领取份额不作为实际代币出售，不自动claim；仅有未领取份额时返回提示，两者同时存在时只卖已到账代币并说明其余份额。阶段2迁移期间停止。不会自动决定卖出时机、清理尾差或在已提交后更换场所。
 
 ## 恢复、成本与边界
 
@@ -104,3 +104,9 @@ GitHub Actions 模板见 [docs/github-actions-test.yml](https://github.com/nopap
 查询 `recover PARENT_ID` 只读确认子阶段；下一步尚未提交时，同一请求 `sell ... --resume` 连续完成。PREPARING 且无提交标记可以显式恢复；UNKNOWN/PENDING 不可重发。卖出成功但兑换失败时，报告实际保留资产并刷新持仓，不能把整次流程说成未卖出。
 
 净盈亏=已证明实际 BNB-本次卖出对应买入成本（含买入/资金兑换 Gas）-卖出 Gas-退出兑换 Gas。单独跟踪本次支付币所得批次，不稀释原有支付币成本。部分兑换保留余款，整体盈亏暂不标记完全已实现。
+
+## 毕业后的自动卖出与恢复
+
+阶段3卖出复用 EXIT_V1，保存市场、实际代币、精度、原始数量、卖出比例及未领取份额。`recover ID --order-id ID [--tx HASH]` 只读核实；只有未提交的PREPARING可以用原CONFIG、原比例、原滑点及同一请求 `sell ... --resume` 继续。已提交订单绝不按新余额重算或重复提交。旧SELL_V1/SALE_BNB_V1仍按旧流程恢复。
+
+成交后持仓任务同时保存市场卖出报告，数量按实际代币精度显示。实际BNB须交易级证明，成本须与完整台账及卖前实际余额一致。额外授权费用不能证明已覆盖时，实收BNB仍按证据展示，净盈亏保留未知；已确认兑换Gas单列，不冒充全部费用。期初nonce读取不改变钱包，缺失或出现前置钱包交易时费用完整性保持未知。

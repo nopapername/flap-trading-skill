@@ -1,3 +1,11 @@
+# 0.1.10
+
+- Add a sell dispatcher: internal market sale retains the existing proceeds-only conversion; graduated deployed wallet tokens exit directly to BNB with exact percentage/decimals. Unclaimed-only shares prompt without any claim, mixed holdings sell only actual tokens.
+- Persist market-bound EXIT_V1 intent, venue and quantity. Resume only never-submitted preparation, recover submitted orders without resubmission; legacy internal/standalone exit intents stay compatible and revoked conversion permissions remain enforced.
+- Attach receipt-backed token quantities, conservative proportional basis, actual native proceeds and realized PnL to the post-trade wallet/holdings report. Missing claim/basis or approval Gas coverage remains unknown.
+- Read pinned claimable state rather than treating historical shares as unclaimed; repair missing graduated native proceeds atomically in the existing bounded read-only archive worker.
+- All release tests use read-only fixtures and simulated execution; no real trading or claiming.
+
 # 0.1.9
 
 - Default trading rules v3 explicitly includes current-sale-proceeds-only conversion to BNB after a human sell request, via existing --auto-sale-to-bnb; pre-existing quote inventory and earlier policies remain unchanged.

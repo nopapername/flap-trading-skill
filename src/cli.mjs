@@ -11,6 +11,7 @@ import {stateDirectory,initializePolicy,loadPolicy,authorizeTrade,requestIdentit
 import {resolveInput} from './resolver.mjs';import {inspectRoute} from './route.mjs';
 import {Trader} from './trader.mjs';import {QuoteTrader} from './quote-trader.mjs';import {QuoteAdapter} from './quote-adapter.mjs';import {DexTrader} from './dex-trader.mjs';
 import {SaleBNBTrader} from './sale-bnb.mjs';
+import {MarketSeller} from './market-seller.mjs';
 import {ExitTrader} from './exit-trader.mjs';
 import {SellTrader} from './sell-trader.mjs';import {SellAdapter} from './sell-adapter.mjs';
 import {loadPortfolio,renderPortfolio,partitionPortfolio} from './portfolio.mjs';import {reconcileSettlement} from './settlement.mjs';
@@ -31,7 +32,7 @@ async function outcome(operation,requestId,wallet){
 }
 async function main(){
  if(Number(process.versions.node.split('.')[0])<22)throw new Error('Node.js >=22 required');
- if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.9 (Node >=22; chain56)
+ if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.10 (Node >=22; chain56)
 node src/cli.mjs init --wallet ADDRESS --budget BNB --slippage-bps 100 --mode read-only|confirm|auto
   [--allow-quote-conversion] [--allow-direct] [--ack-audit-unavailable] [--auto-sale-to-bnb]
 node src/cli.mjs doctor
@@ -51,7 +52,7 @@ node src/cli.mjs reconcile EVIDENCE_JSON
 All commands accept --data-dir DIR. Default state: FLAP_HOME or user data directory.
 FLAP_READ_ONLY=1 unconditionally blocks writes to the wallet. Reads update local state only.
 Default request IDs buy each market once; explicit new ID is required for another purchase.
-Sell returns the market quote asset; no implicit conversion, claim or route change.
+Sell selects internal shares or deployed wallet tokens to BNB. Unclaimed shares are reported; never auto-claimed. Submitted intents never change route.
 `);return;}
  if(['buy','sell','exit'].includes(cmd)&&(!flag('live')||process.env.FLAP_READ_ONLY==='1'))throw new Error('read-only: explicit --live required and FLAP_READ_ONLY must not be 1');
  if(cmd==='reconcile'){const evidence=JSON.parse(await readFile(args[0],'utf8'));emit(reconcileSettlement(evidence));return;}
@@ -87,6 +88,7 @@ Sell returns the market quote asset; no implicit conversion, claim or route chan
  const exiter=new ExitTrader({rpc,baw,ledger,expectedWallet:wallet});
  const seller=new SellTrader({adapter:new SellAdapter({rpc,baw}),ledger,expectedWallet:wallet,onEvent});
  const saleBNB=new SaleBNBTrader({ledger,seller,exiter,rpc,expectedWallet:wallet});
+ const marketSeller=new MarketSeller({rpc,ledger,seller,saleBNB,exiter,expectedWallet:wallet,onEvent});
  if(cmd==='accounts'){const a=reconcileAccounts(await ledger.read(),wallet);await save('accounts-latest.json',a);emit(a);return;}
  if(cmd==='reconcile-history'){
   const result=await autoReconcileHistory({rpc,ledger,wallet,force:true,apply:flag('apply')});
@@ -104,7 +106,7 @@ Sell returns the market quote asset; no implicit conversion, claim or route chan
  if(cmd==='exit'){
   if(!flag('request'))throw new Error('Explicit unique --request ID required for exits');
   const slippageBps=Number(opt('slippage-bps',policy.defaultSlippageBps));authorizeTrade(policy,{live:flag('live'),confirmed:flag('confirm'),slippageBps,action:'sell'});
-  await outcome(await exiter.exit(args[0],{amount:opt('amount','all'),requestId:opt('request'),slippageBps,live:true}),opt('request'),wallet);return;
+  await outcome(await exiter.exit(args[0],{amount:opt('amount','all'),requestId:opt('request'),slippageBps,live:true,resume:flag('resume')}),opt('request'),wallet);return;
  }
  if(!['resolve','route','prepare','buy','sell'].includes(cmd))throw new Error('Unknown command; run help');
  if(!args[0]||args[0].startsWith('--'))throw new Error('CONFIG file, predicted CA or Flap URL required');
@@ -116,7 +118,7 @@ Sell returns the market quote asset; no implicit conversion, claim or route chan
  if(cmd==='sell'){
   if(!flag('request'))throw new Error('Explicit unique --request ID required for sells');
   authorizeTrade(policy,{...options,live:flag('live'),confirmed:flag('confirm'),action:'sell'});
-  try{await outcome(await (policy.automaticSaleConversion===true?saleBNB:seller).sell(config,{requestId,shareBps:Number(opt('share-bps','10000')),slippageBps,live:true,resume:flag('resume')}),requestId,wallet);}catch(e){if(!e.operation)throw e;await outcome(e.operation,requestId,wallet);process.exitCode=1;}return;
+  try{await outcome(await marketSeller.sell(config,{requestId,shareBps:Number(opt('share-bps','10000')),slippageBps,live:true,resume:flag('resume'),automaticSaleConversion:policy.automaticSaleConversion===true}),requestId,wallet);}catch(e){if(!e.operation)throw e;await outcome(e.operation,requestId,wallet);process.exitCode=1;}return;
  }
  if(old&&cmd==='buy'){
   authorizeTrade(policy,{...options,live:flag('live'),confirmed:flag('confirm')});
