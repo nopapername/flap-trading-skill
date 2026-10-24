@@ -47,7 +47,7 @@ v0.1.4 合并同次操作的重复市场读取，并批量查询独立的身份�
 - [AI 安装和首次设置](references/setup.md)
 - [手动安装、CLI 命令和支持范围](references/advanced.md)
 - [交易恢复](references/recovery.md) · [成本与盈亏](references/accounting.md)
-- [验收结果](https://github.com/nopapername/flap-trading-skill/blob/main/docs/validation.md) · [版本与安装包](https://github.com/nopapername/flap-trading-skill/releases)
+- [v0.1.10 首次安装验收报告](docs/first-use-v0.1.10.md) · [历次验收结果](https://github.com/nopapername/flap-trading-skill/blob/main/docs/validation.md) · [版本与安装包](https://github.com/nopapername/flap-trading-skill/releases)
 
 新用户需要自己的钱包和授权，发布包不含作者的凭证、台账或交易权限。本版没有以真实资金做发布验收；测试使用只读链上查询及模拟交易工具。缺少完整到账证据时，净盈亏显示未知。GitHub CI 尚未启用，仓库保留了 [CI 模板](https://github.com/nopapername/flap-trading-skill/blob/main/docs/github-actions-test.yml)。MIT License。
 
