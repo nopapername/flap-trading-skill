@@ -1,0 +1,6 @@
+interface:
+  display_name: "Flap Trading"
+  short_description: "安装并设置一次，发送 Flap CONFIG 或预测 CA 后按授权快速买入"
+  default_prompt: "请使用 $flap-trading 检查安装和钱包连接，引导我完成首次授权设置。"
+policy:
+  allow_implicit_invocation: true

@@ -1,5 +1,5 @@
 import {readdir,readFile,lstat} from 'node:fs/promises';import {join} from 'node:path';
-const roots=['src','bin','references','test','scripts'];let count=0;
+const roots=['src','bin','references','test','scripts','agents'];let count=0;
 const forbidden=[/\/Users\/[^/\s]+\//,/gh[pousr]_[a-zA-Z0-9]{24,}/,/-----BEGIN .*PRIVATE KEY-----/,/sessionToken\s*[:=]\s*["'][^"']+["']/];
 async function visit(p){const st=await lstat(p);if(st.isSymbolicLink())throw new Error('Release must not include symlinks: '+p);if(st.isDirectory()){for(const name of await readdir(p))await visit(join(p,name));return;}
  const text=await readFile(p,'utf8');if(p!=='scripts/check-release.mjs'&&forbidden.some(x=>x.test(text)))throw new Error('Sensitive or personal content: '+p);count++;}

@@ -1,6 +1,6 @@
 {
   "name": "flap-trading-skill",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Community AI skill for verified Flap markets using Binance Agentic Wallet",
   "type": "module",
   "license": "MIT",
@@ -12,7 +12,8 @@
   },
   "scripts": {
     "test": "node scripts/test.mjs",
-    "check:release": "node scripts/check-release.mjs"
+    "check:release": "node scripts/check-release.mjs",
+    "acceptance": "node scripts/acceptance.mjs"
   },
   "files": [
     "SKILL.md",
@@ -26,7 +27,8 @@
     "scripts/test.mjs",
     "scripts/check-release.mjs",
     "test",
-    "npm-shrinkwrap.json"
+    "npm-shrinkwrap.json",
+    "scripts/acceptance.mjs"
   ],
   "dependencies": {
     "viem": "2.57.10"

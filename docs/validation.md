@@ -1,3 +1,9 @@
+# Validation — v0.1.1
+
+Source and clean packaged-artifact suites:135/135. First-use acceptance:17 checks, no wallet mutations. Includes verified public CA/CONFIG discovery and fake adapter auto-mode/recovery coverage. No real trades or App login. See [full first-use report](first-use-acceptance.md). GitHub CI remains a template because workflow scope is unavailable.
+
+## Previous v0.1.0 validation
+
 # Validation — 2026-10-24
 
 - Source suite:131 passed,0 failed, using FLAP_READ_ONLY=1 and injected execution adapters.

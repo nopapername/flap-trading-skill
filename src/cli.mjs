@@ -21,7 +21,7 @@ async function report(rpc,ledger,wallet){
 }
 async function main(){
  if(Number(process.versions.node.split('.')[0])<22)throw new Error('Node.js >=22 required');
- if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.0 (Node >=22; chain56)
+ if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.1 (Node >=22; chain56)
 node src/cli.mjs init --wallet ADDRESS --budget BNB --slippage-bps 100 --mode read-only|confirm|auto
   [--allow-quote-conversion] [--allow-direct] [--ack-audit-unavailable]
 node src/cli.mjs doctor
@@ -61,8 +61,8 @@ Sell returns the market quote asset; no implicit conversion, claim or route chan
   if(flag('json'))emit(s);else console.log('Saved offline snapshot\n'+renderPortfolio(s.rows,{...s,balance:BigInt(s.balance)}));return;
  }
  const policy=await loadPolicy(dir),wallet=address(policy.wallet),ledger=new Ledger(join(dir,'ledger.json')),onEvent=x=>console.error(json(x));
- const quoteAdapter=new QuoteAdapter({rpc,baw,onEvent,allowUnavailableAudit:policy.auditUnavailableAcknowledged===true});
- const native=new Trader({rpc,baw,ledger,expectedWallet:wallet,onEvent}),quote=new QuoteTrader({adapter:quoteAdapter,ledger,expectedWallet:wallet,onEvent});
+ const quoteAdapter=new QuoteAdapter({rpc,baw,onEvent,allowQuoteConversion:policy.automaticQuoteConversion===true,allowUnavailableAudit:policy.auditUnavailableAcknowledged===true});
+ const native=new Trader({rpc,baw,ledger,expectedWallet:wallet,onEvent}),quote=new QuoteTrader({adapter:quoteAdapter,ledger,expectedWallet:wallet,onEvent,allowQuoteConversion:policy.automaticQuoteConversion===true});
  const dex=new DexTrader({rpc,baw,ledger,expectedWallet:wallet,onEvent,allowUnavailableAudit:policy.auditUnavailableAcknowledged===true});
  const exiter=new ExitTrader({rpc,baw,ledger,expectedWallet:wallet});
  const seller=new SellTrader({adapter:new SellAdapter({rpc,baw}),ledger,expectedWallet:wallet,onEvent});

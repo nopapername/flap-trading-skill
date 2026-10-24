@@ -4,7 +4,7 @@ import {NATIVE} from './route.mjs';import {auditToken} from './security.mjs';
 import {validateContractPreview,confirmedTransaction,netTokenReceived} from './execution.mjs';
 const tokenAbi=parseAbi(['function balanceOf(address) view returns (uint256)','function allowance(address,address) view returns (uint256)']);
 export class QuoteAdapter {
- constructor({rpc,baw,allowUnavailableAudit=false,onEvent=()=>{}}){Object.assign(this,{rpc,baw,allowUnavailableAudit,onEvent});}
+ constructor({rpc,baw,allowUnavailableAudit=false,onEvent=()=>{},allowQuoteConversion=false}){Object.assign(this,{rpc,baw,allowUnavailableAudit,onEvent,allowQuoteConversion});}
  async identity(){const who=await this.baw.identity();if(who.settings.devMode?.enabled!==true)throw new Error('Developer Mode disabled');return who;}
  async assess(config,wallet){
   const s=await this.rpc.snapshot(config,wallet,'buy');
@@ -32,7 +32,7 @@ export class QuoteAdapter {
   return {bnb,amountWei:amount.toString(),quoteToken:c.QUOTE_TOKEN,quoteDecimals:c.QUOTE_DECIMALS,slippageBps:slip,quote};
  }
  audit(token){return auditToken(token,{allowUnavailable:this.allowUnavailableAudit,onEvent:this.onEvent});}
- swap(p){return this.baw.swap(['--fromTokenQty',p.bnb,'--fromToken',NATIVE,'--toToken',p.quoteToken,'--binanceChainId','56','--slippage',String(p.slippageBps/100),'--mev','true']);}
+ swap(p){if(this.allowQuoteConversion!==true)throw new Error('Quote conversion not authorized by personal policy');return this.baw.swap(['--fromTokenQty',p.bnb,'--fromToken',NATIVE,'--toToken',p.quoteToken,'--binanceChainId','56','--slippage',String(p.slippageBps/100),'--mev','true']);}
  async settleSwap(p){
   if(!p.result?.orderId)throw new Error('Order ID required for funding swap recovery; retain unknown outcome');
   let hash=p.result.txHash;

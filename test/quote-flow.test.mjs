@@ -1,6 +1,26 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {mkdtemp} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';
 import {QuoteTrader} from '../src/quote-trader.mjs';import {Ledger} from '../src/ledger.mjs';
+import {initializePolicy,loadPolicy,authorizeTrade,requestIdentity} from '../src/policy.mjs';
 const wallet='0x'+'b'.repeat(40),config={CHAIN_ID:56,MARKET:'0x'+'c'.repeat(40),QUOTE_TOKEN:'0x'+'a'.repeat(40),POOL_TYPE:'ERC20'};
+test('one-time auto setup runs funding approval and buy continuously with fake execution and duplicate CONFIG stays inert',async()=>{
+ const x=await setup(0n),dir=await mkdtemp(join(tmpdir(),'flap-auto-onboarding-'));
+ await initializePolicy(dir,{wallet,maxBudgetBNB:'0.1',defaultSlippageBps:100,mode:'auto',automaticQuoteConversion:true});
+ const policy=await loadPolicy(dir);authorizeTrade(policy,{live:true,budget:'0.1',slippageBps:100,needsConversion:true,env:{}});
+ let approved=false;const plan=x.adapter.planBuy;
+ x.adapter.planBuy=async(...a)=>({...await plan(...a),allowanceRaw:approved?1000n:0n});
+ x.adapter.settleContract=async leg=>{if(leg.kind==='APPROVAL')approved=true;return {gasWei:3n,receipt:{status:'0x1',transactionHash:'0x'+'d'.repeat(64),blockNumber:'0x10',transactionIndex:'0x0'}};};
+ x.adapter.decodeBuy=()=>({units:20n,quoteSpentRaw:90n});
+ const requestId=requestIdentity(config,wallet),options={requestId,budget:policy.maxBudgetBNB,slippageBps:policy.defaultSlippageBps,live:true,waitMs:0};
+ assert.equal((await x.trader.buy(config,options)).status,'FINISHED');
+ const events=x.events.slice();await x.trader.buy(config,options);assert.deepEqual(x.events,events);
+ assert.equal(events.filter(e=>e==='swap').length,1);assert.equal(events.filter(e=>e==='APPROVAL-execute').length,1);assert.equal(events.filter(e=>e==='BUY-execute').length,1);
+ assert.deepEqual(events.slice(-2),['BUY-preview','BUY-execute']);assert.equal((await x.ledger.read()).trades.length,1);
+});
+test('conversion opt-out is enforced when the engine discovers a zero balance after an earlier positive check',async()=>{
+ const x=await setup(0n);x.trader.allowQuoteConversion=false;
+ await assert.rejects(x.trader.buy(config,{requestId:'no-conversion',live:true,waitMs:0}),/conversion.*authoriz/i);
+ assert.ok(!x.events.includes('swap'));assert.ok(!x.events.includes('APPROVAL-execute'));
+});
 test('same pending intent survives changing phase and launch metadata without resubmission',async()=>{
  const x=await setup();const first=await x.trader.buy(config,{requestId:'stable',live:true,waitMs:0});
  const later=await x.trader.buy({...config,PHASE:'3',TOKEN:'0x'+'d'.repeat(40),PAIR:'0x'+'e'.repeat(40)},{requestId:'stable',live:true,waitMs:0});
@@ -17,7 +37,7 @@ async function setup(balance=100n,{rise=false,close=false,pending=false,fail=fal
   planBuy:async(c,w,limit)=>{events.push('plan');if(close&&funded)throw new Error('MARKET_NOT_OPEN');return {kind:'BUY',amountRaw:balance<limit?balance:limit,neededForFullCap:rise&&funded?200n:100n,inventoryRaw:balance,allowanceRaw:0n,at:Date.now(),data:'0xab',to:config.MARKET,from:wallet};},
   approval:async(c,w,n)=>({kind:'APPROVAL',amountRaw:n,at:Date.now(),data:'0xcd',to:config.QUOTE_TOKEN,from:wallet}),
   preview:async p=>{events.push(p.kind+'-preview');return {requestId:p.kind,expiresAt:Date.now()+100000};},validate:()=>{},execute:async id=>{events.push(id+'-execute');return {txHash:'0x'+'2'.repeat(64)};},settleContract:async()=>null};
- return {events,ledger,adapter,trader:new QuoteTrader({adapter,ledger,expectedWallet:wallet}),funded:()=>funded};
+ return {events,ledger,adapter,trader:new QuoteTrader({adapter,ledger,expectedWallet:wallet,allowQuoteConversion:true}),funded:()=>funded};
 }
 test('existing quote balance skips funding and preview immediately precedes its execution',async()=>{const x=await setup();await x.trader.buy(config,{requestId:'x',live:true,waitMs:0});assert.ok(!x.events.includes('swap'));assert.deepEqual(x.events.slice(-2),['APPROVAL-preview','APPROVAL-execute']);});
 test('a rising full-cap requirement never causes a second conversion',async()=>{const x=await setup(0n,{rise:true});const plan=x.adapter.planBuy;x.adapter.planBuy=async(...args)=>({...await plan(...args),allowanceRaw:1000n});await x.trader.buy(config,{requestId:'x',live:true,waitMs:0});const o=(await x.ledger.read()).operations.x;assert.equal(x.events.filter(e=>e==='swap').length,1);assert.equal(o.availableRaw,'90');assert.equal(o.currentLeg.plan.amountRaw,'90');assert.equal(o.currentLeg.plan.neededForFullCap,'200');});

@@ -2,7 +2,7 @@ import {stableConfig} from './core.mjs';
 import {validateBudget} from './route.mjs';import {json,fingerprint,keyOf} from './core.mjs';
 const active=o=>['PREPARING','SUBMITTING','UNKNOWN','PENDING','CONFIRMED_UNREADABLE'].includes(o.status);
 export class QuoteTrader {
- constructor({adapter,ledger,expectedWallet,onEvent=()=>{}}){Object.assign(this,{adapter,ledger,expectedWallet,onEvent});}
+ constructor({adapter,ledger,expectedWallet,onEvent=()=>{},allowQuoteConversion=false}){Object.assign(this,{adapter,ledger,expectedWallet,onEvent,allowQuoteConversion});}
  async prepare(config,{budget='1',slippageBps=100,wallet=this.expectedWallet}={}){
   validateBudget(budget,slippageBps);if(config.POOL_TYPE!=='ERC20')throw new Error('ERC20 pool required');
   const s=await this.adapter.assess(config,wallet);if(s.phase!=='1')throw new Error('MARKET_NOT_OPEN');
@@ -22,6 +22,7 @@ export class QuoteTrader {
    try{
     if(!op){
      const p=await this.prepare(config,{budget,slippageBps,wallet});
+     if(p.funding&&this.allowQuoteConversion!==true)throw new Error('Quote conversion not authorized by personal policy');
      op={workflow:'ERC20_V1',intent,status:'PREPARING',stage:'ASSESSED',wallet,config,budget,slippageBps,priorShares:p.snapshot.priorShares,availableRaw:p.availableRaw?.toString(),fundingCount:0};
      await this.patch(requestId,op);
      if(p.funding){

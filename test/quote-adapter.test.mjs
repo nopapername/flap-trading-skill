@@ -1,5 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {QuoteAdapter} from '../src/quote-adapter.mjs';import {Rpc} from '../src/rpc.mjs';import {encodeErrorResult,parseAbi} from 'viem';
 const fixture=JSON.parse(readFileSync(new URL('./fixtures/confirmed-buy.json',import.meta.url)));
+test('funding adapter refuses conversion without explicit permission before calling the wallet',()=>{
+ for(const allowQuoteConversion of [undefined,false,'false',1]){const a=new QuoteAdapter({allowQuoteConversion,baw:{swap:()=>assert.fail('must not invoke wallet')}});
+ assert.throws(()=>a.swap({bnb:'0.1',quoteToken:'0x'+'a'.repeat(40),slippageBps:100}),/conversion.*authoriz/i);}
+});
 test('actual ERC20 fill must agree with trace, minimum shares and wallet token outflow',()=>{
  const a=new QuoteAdapter({}),wallet=fixture.transaction.from,quote='0x'+'e'.repeat(40),config={MARKET:fixture.receipt.logs[1].address,QUOTE_TOKEN:quote,PREDICTED_TOKEN:'0x4444444444444444444444444444444444444444'};
  const receipt=structuredClone(fixture.receipt),topic=x=>'0x'+x.slice(2).padStart(64,'0');
