@@ -7,8 +7,8 @@ function validate(p){
  const n=parseUnits(p.maxBudgetBNB);if(n<=0n||n>parseUnits('1'))throw new Error('Personal budget must be positive and <=1 BNB');
  if(!Number.isInteger(p.defaultSlippageBps)||!Number.isInteger(p.maxSlippageBps)||p.defaultSlippageBps<0||p.defaultSlippageBps>p.maxSlippageBps||p.maxSlippageBps>500)throw new Error('Invalid personal slippage');return p;
 }
-export async function initializePolicy(dir,{wallet,maxBudgetBNB,defaultSlippageBps,mode='read-only',maxSlippageBps=defaultSlippageBps,automaticQuoteConversion=false,preferVerifiedBNBDirect=false,auditUnavailableAcknowledged=false}={}){
- const p=validate({version:1,wallet:address(wallet),chainId:56,maxBudgetBNB,defaultSlippageBps,maxSlippageBps,mode,automaticQuoteConversion,preferVerifiedBNBDirect,auditUnavailableAcknowledged,automaticSell:false,automaticClaim:false});
+export async function initializePolicy(dir,{wallet,maxBudgetBNB,defaultSlippageBps,mode='read-only',maxSlippageBps=defaultSlippageBps,automaticQuoteConversion=false,preferVerifiedBNBDirect=false,auditUnavailableAcknowledged=false,automaticSaleConversion=false}={}){
+ const p=validate({version:1,wallet:address(wallet),chainId:56,maxBudgetBNB,defaultSlippageBps,maxSlippageBps,mode,automaticQuoteConversion,preferVerifiedBNBDirect,auditUnavailableAcknowledged,automaticSaleConversion,automaticSell:false,automaticClaim:false});
  await mkdir(dir,{recursive:true,mode:0o700});let file;try{file=await open(join(dir,'policy.json'),'wx',0o600);}catch(e){if(e.code==='EEXIST')throw new Error('Policy already exists; review it explicitly before changing authorization');throw e;}
  try{await file.writeFile(json(p)+'\n');await file.sync();}finally{await file.close();}return p;
 }

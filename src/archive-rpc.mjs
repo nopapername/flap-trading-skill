@@ -1,6 +1,6 @@
 import {Rpc} from './rpc.mjs';
 export const DEFAULT_ARCHIVE_URLS=Object.freeze(['https://bsc-mainnet.nodereal.io/v1/64a9df0874fb4a93b9d0a3849de012d3','https://rpc-bnb.blockmachine.io','https://bnb-mainnet.g.alchemy.com/public']);
-const READS=new Set(['eth_chainId','eth_blockNumber','eth_getBlockByNumber','eth_call','eth_getBalance','eth_estimateGas','eth_gasPrice','eth_getTransactionReceipt','eth_getTransactionByHash','eth_getCode','eth_getLogs']);
+const READS=new Set(['debug_traceTransaction','eth_chainId','eth_blockNumber','eth_getBlockByNumber','eth_call','eth_getBalance','eth_estimateGas','eth_gasPrice','eth_getTransactionReceipt','eth_getTransactionByHash','eth_getCode','eth_getLogs']);
 const quantity=v=>typeof v==='string'&&/^0x[0-9a-f]+$/i.test(v);
 const hex=v=>typeof v==='string'&&/^0x(?:[0-9a-f]{2})*$/i.test(v);
 const hash=v=>typeof v==='string'&&/^0x[0-9a-f]{64}$/i.test(v);
@@ -15,6 +15,7 @@ function valid(method,value){
  if(value===null&&['eth_getTransactionReceipt','eth_getTransactionByHash','eth_getBlockByNumber'].includes(method))return true;
  if(['eth_chainId','eth_blockNumber','eth_getBalance','eth_estimateGas','eth_gasPrice'].includes(method))return quantity(value);
  if(['eth_call','eth_getCode'].includes(method))return hex(value);
+ if(method==='debug_traceTransaction')return value&&typeof value==='object'&&!Array.isArray(value)&&typeof value.type==='string';
  if(method==='eth_getBlockByNumber')return value&&quantity(value.number)&&hash(value.hash);
  if(method==='eth_getLogs')return Array.isArray(value)&&value.every(v=>v&&typeof v==='object'&&hash(v.blockHash)&&hash(v.transactionHash)&&quantity(v.blockNumber)&&Array.isArray(v.topics)&&hex(v.data));
  return value&&typeof value==='object'&&hash(value.hash||value.transactionHash)&&((hash(value.blockHash)&&quantity(value.blockNumber))||(method==='eth_getTransactionByHash'&&value.blockHash===null&&value.blockNumber===null));
@@ -69,5 +70,5 @@ export async function createArchiveRpc(primary,{urls=DEFAULT_ARCHIVE_URLS,factor
   if(canCache)flights.set(key,task);
   try{return structuredClone(await task);}finally{if(canCache)flights.delete(key);}
  };
- return {result,async call(method,params){return {jsonrpc:'2.0',result:await result(method,params)};},async batch(calls){for(const call of calls)assertRead(call.method);return Promise.all(calls.map(call=>this.call(call.method,call.params)));},async block(){return structuredClone(head);},get requests(){return diagnostics.reads;},get diagnostics(){return structuredClone({...diagnostics,elapsedMs:Math.max(0,now()-started)});}};
+ return {result,async resultFresh(method,params=[]){assertRead(method);return structuredClone(await perform(method,params));},async call(method,params){return {jsonrpc:'2.0',result:await result(method,params)};},async batch(calls){for(const call of calls)assertRead(call.method);return Promise.all(calls.map(call=>this.call(call.method,call.params)));},async block(){return structuredClone(head);},get requests(){return diagnostics.reads;},get diagnostics(){return structuredClone({...diagnostics,elapsedMs:Math.max(0,now()-started)});}};
 }

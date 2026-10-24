@@ -7,5 +7,5 @@ const {loadPolicy}=await import('./policy.mjs');const {Ledger}=await import('./l
 const args=process.argv.slice(2),dir=resolve(args[args.indexOf('--data-dir')+1]),id=args[args.indexOf('--job')+1];
 await runPortfolioJob({dir,id,refresh:async job=>{
  const policy=await loadPolicy(dir);if(policy.wallet!==job.wallet)throw new Error('Portfolio job wallet no longer matches policy');
- return refreshPortfolio({dir,wallet:job.wallet,minimumBlock:job.minimumBlock,ledger:new Ledger(join(dir,'ledger.json')),rpc:new Rpc({url:process.env.FLAP_RPC_URL||undefined})});
+ return refreshPortfolio({dir,wallet:job.wallet,minimumBlock:job.minimumBlock,requestId:job.requestId,ledger:new Ledger(join(dir,'ledger.json')),rpc:new Rpc({url:process.env.FLAP_RPC_URL||undefined})});
 }}).catch(()=>{process.exitCode=1;});

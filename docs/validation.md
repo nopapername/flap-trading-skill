@@ -1,3 +1,9 @@
+# Validation — v0.1.5
+
+Source and clean installed package: **239/239** each. First-use CLI acceptance: **20/20**, walletMutations=0. Personal tool compatibility: **66/66**. All implementation/testing ran with `FLAP_READ_ONLY=1`; no real sale, conversion, signature, approval or wallet settings change. Independent review passed after fixes for raw quote amount/decimals, PREPARING recovery, isolated proceeds basis, aggregate unknowns, canonical re-inclusion proof and interrupted v0.1.4 sale recovery. CI remains a template; checks are local.
+
+Coverage includes exact current-sale proceeds conversion, no pre-existing quote sweep, at-most-once child effects, sale/exit interruption recovery, partial refunds, invalid parent bindings, mutable decimals, transaction trace bounds/delegatecall/revert semantics, canonical cache bypass, insufficient proof preserving unknowns, original block/hash/Gas binding, separate quote basis and current-sale/historical reports. Source token code/balance/decimals/symbol use one pinned batch instead of sequential reads. Live speed was not measured.
+
 # Validation — v0.1.4
 
 Source suite: **207/207**. Clean release tarball installed using offline locked dependencies: **207/207**. Separate first-use CLI acceptance: **18/18**, walletMutations=0. Personal-tool compatibility: **66/66**. Skill validation and release source scan passed (75 files; runtime data excluded). Independent review found no remaining blockers after atomic job publication and crash/concurrent recovery fixes. GitHub-hosted CI remains unenabled; these are local checks.

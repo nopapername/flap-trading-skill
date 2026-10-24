@@ -1,6 +1,6 @@
 # Flap Trading Skill
 
-独立、可分发的社区 AI Skill，通过币安官方 Agentic Wallet 操作 BNB Chain 上的 Flap Agent 内盘。**不是币安或 Flap 官方产品。** 当前版本0.1.4，尚未以真实资金验证分发版本。
+独立、可分发的社区 AI Skill，通过币安官方 Agentic Wallet 操作 BNB Chain 上的 Flap Agent 内盘。**不是币安或 Flap 官方产品。** 当前版本0.1.5，尚未以真实资金验证分发版本。
 
 支持：预测 CA / 完整 CONFIG / Flap 链接解析；最高可买份额；原生 BNB 和 ERC20 内盘；经验证的已发行代币 BNB 直购；显式内盘卖出及代币→BNB 兑换；订单恢复；多市场持仓和资金成本对账。
 
@@ -96,3 +96,11 @@ GitHub Actions 模板见 [docs/github-actions-test.yml](https://github.com/nopap
 ## 成交后统计
 
 `buy`／`sell`／`exit`／确认完成的 `recover` 先返回交易结果，再返回独立持仓任务 ID。AI 自动用 `portfolio-job ID --wait-ms 30000` 取表；后台任务不持有交易队列，归档网络读取在钱包锁之外。`portfolio-job ID --resume` 只恢复统计，不恢复或重试金融操作。独立任务强制 `FLAP_READ_ONLY=1`，持仓快照须不早于触发它的确认区块；错误字段保留未知。
+
+## 连续卖出为 BNB
+
+用户单独授权 `automaticSaleConversion` 后，初始化时加 `--auto-sale-to-bnb`；已有策略只能在用户明确授权后修改此字段，不能因升级自动开启。`sell CONFIG --live --confirm --request ID [--resume]` 创建 SALE_BNB_V1 父请求，关联固定 SELL_V1／EXIT_V1 子请求。仅兑换当前卖出实际到账原始数量，交易前再次验证链上精度/余额，不调用 amount=all。每个必要合约预览及风险检查保留，代币字段在固定区块批量读取。
+
+查询 `recover PARENT_ID` 只读确认子阶段；下一步尚未提交时，同一请求 `sell ... --resume` 连续完成。PREPARING 且无提交标记可以显式恢复；UNKNOWN/PENDING 不可重发。卖出成功但兑换失败时，报告实际保留资产并刷新持仓，不能把整次流程说成未卖出。
+
+净盈亏=已证明实际 BNB-本次卖出对应买入成本（含买入/资金兑换 Gas）-卖出 Gas-退出兑换 Gas。单独跟踪本次支付币所得批次，不稀释原有支付币成本。部分兑换保留余款，整体盈亏暂不标记完全已实现。

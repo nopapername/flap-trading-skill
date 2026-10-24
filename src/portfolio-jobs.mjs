@@ -12,7 +12,7 @@ export function dispatchPortfolioJob(job,{dir}){
  child.on('error',()=>{});child.unref();
 }
 export async function enqueuePortfolio({dir,wallet,requestId,operation,dispatch=dispatchPortfolioJob}){
- if(operation?.status!=='FINISHED')return null;
+ if(operation?.status!=='FINISHED'){if(operation?.workflow!=='SALE_BNB_V1'||operation.confirmedSale?.receiptStatus!=='0x1')return null;operation={...operation,txHash:operation.confirmedSale.txHash,actual:{block:operation.confirmedSale.block}};}
  wallet=address(wallet);const txHash=operation.txHash||operation.actual?.txHash;
  if(!/^0x[0-9a-f]{64}$/i.test(txHash||''))throw new Error('Confirmed transaction hash required for portfolio job');
  const id='portfolio-'+fingerprint({wallet,requestId,txHash:txHash.toLowerCase()}).slice(0,32),job={version:1,id,wallet,requestId,txHash:txHash.toLowerCase(),minimumBlock:String(BigInt(operation.actual?.block??operation.receiptBlock??0)),status:'QUEUED',attempts:0,createdAt:new Date().toISOString()};

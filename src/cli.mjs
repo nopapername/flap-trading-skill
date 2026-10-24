@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import{renderSaleResult}from'./sale-report.mjs';
 import {readFile,writeFile,mkdir,rename} from 'node:fs/promises';
 import {join,resolve} from 'node:path';import {randomUUID} from 'node:crypto';
 import {address,json,formatUnits,parseUnits} from './core.mjs';import {Rpc} from './rpc.mjs';import {Baw} from './wallet.mjs';import {Ledger} from './ledger.mjs';
@@ -9,6 +10,7 @@ import {reconcileAccounts} from './accounts.mjs';
 import {stateDirectory,initializePolicy,loadPolicy,authorizeTrade,requestIdentity} from './policy.mjs';
 import {resolveInput} from './resolver.mjs';import {inspectRoute} from './route.mjs';
 import {Trader} from './trader.mjs';import {QuoteTrader} from './quote-trader.mjs';import {QuoteAdapter} from './quote-adapter.mjs';import {DexTrader} from './dex-trader.mjs';
+import {SaleBNBTrader} from './sale-bnb.mjs';
 import {ExitTrader} from './exit-trader.mjs';
 import {SellTrader} from './sell-trader.mjs';import {SellAdapter} from './sell-adapter.mjs';
 import {loadPortfolio,renderPortfolio,partitionPortfolio} from './portfolio.mjs';import {reconcileSettlement} from './settlement.mjs';
@@ -20,7 +22,7 @@ function rehydrate(s){
  for(const row of [...s.rows,...(s.historyRows||[])])for(const k of ['shares','tokens','cost','value','pnl','exitGasWei','sellWei','realized','recordedBuyCost'])if(row[k]!=null)row[k]=BigInt(row[k]);
  if(s.balance!=null)s.balance=BigInt(s.balance);return s;
 }
-function display(s){if(flag('json'))emit(s);else{console.log(renderPortfolio(s.rows,{...s,detail:flag('detail')}));if(Object.values(s.quoteFundingBalances||{}).some(x=>BigInt(x.quantityRaw)>0n))console.log('Separate quote-token funding balances remain; see portfolio --json.');}}
+function display(s){if(flag('json'))emit(s);else{console.log(renderPortfolio(s.rows,{...s,detail:flag('detail')}));if(s.currentSale)console.log(renderSaleResult(s.currentSale,{name:[...s.rows,...(s.historyRows||[])].find(x=>x.key===s.currentSale.market)?.name}));if(Object.values(s.quoteFundingBalances||{}).some(x=>BigInt(x.quantityRaw)>0n))console.log('Separate quote-token funding balances remain; see portfolio --json.');}}
 async function report(rpc,ledger,wallet){display(await refreshPortfolio({dir,rpc,ledger,wallet}));}
 async function outcome(operation,requestId,wallet){
  const line=x=>console.log(JSON.stringify(x,(_,v)=>typeof v==='bigint'?v.toString():v));line(operation);
@@ -29,9 +31,9 @@ async function outcome(operation,requestId,wallet){
 }
 async function main(){
  if(Number(process.versions.node.split('.')[0])<22)throw new Error('Node.js >=22 required');
- if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.4 (Node >=22; chain56)
+ if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.5 (Node >=22; chain56)
 node src/cli.mjs init --wallet ADDRESS --budget BNB --slippage-bps 100 --mode read-only|confirm|auto
-  [--allow-quote-conversion] [--allow-direct] [--ack-audit-unavailable]
+  [--allow-quote-conversion] [--allow-direct] [--ack-audit-unavailable] [--auto-sale-to-bnb]
 node src/cli.mjs doctor
 node src/cli.mjs resolve CONFIG_FILE_OR_CA_OR_FLAP_URL
 node src/cli.mjs route INPUT [--budget 1]
@@ -63,7 +65,7 @@ Sell returns the market quote asset; no implicit conversion, claim or route chan
  const rpc=new Rpc({url:process.env.FLAP_RPC_URL||undefined}),baw=new Baw({allowExecution:['buy','sell','exit'].includes(cmd)&&flag('live')});
  if(cmd==='init'){
   const wallet=opt('wallet')|| (await baw.identity()).wallet;
-  emit(await initializePolicy(dir,{wallet,maxBudgetBNB:opt('budget'),defaultSlippageBps:Number(opt('slippage-bps')),maxSlippageBps:Number(opt('max-slippage-bps',opt('slippage-bps'))),mode:opt('mode','read-only'),automaticQuoteConversion:flag('allow-quote-conversion'),preferVerifiedBNBDirect:flag('allow-direct'),auditUnavailableAcknowledged:flag('ack-audit-unavailable')}));return;
+  emit(await initializePolicy(dir,{wallet,maxBudgetBNB:opt('budget'),defaultSlippageBps:Number(opt('slippage-bps')),maxSlippageBps:Number(opt('max-slippage-bps',opt('slippage-bps'))),mode:opt('mode','read-only'),automaticQuoteConversion:flag('allow-quote-conversion'),preferVerifiedBNBDirect:flag('allow-direct'),auditUnavailableAcknowledged:flag('ack-audit-unavailable'),automaticSaleConversion:flag('auto-sale-to-bnb')}));return;
  }
  if(cmd==='doctor'){
   const checks={node:process.versions.node,stateDir:dir,readOnly:process.env.FLAP_READ_ONLY==='1'};
@@ -84,6 +86,7 @@ Sell returns the market quote asset; no implicit conversion, claim or route chan
  const dex=new DexTrader({rpc,baw,ledger,expectedWallet:wallet,onEvent,allowUnavailableAudit:policy.auditUnavailableAcknowledged===true});
  const exiter=new ExitTrader({rpc,baw,ledger,expectedWallet:wallet});
  const seller=new SellTrader({adapter:new SellAdapter({rpc,baw}),ledger,expectedWallet:wallet,onEvent});
+ const saleBNB=new SaleBNBTrader({ledger,seller,exiter,rpc,expectedWallet:wallet});
  if(cmd==='accounts'){const a=reconcileAccounts(await ledger.read(),wallet);await save('accounts-latest.json',a);emit(a);return;}
  if(cmd==='reconcile-history'){
   const result=await autoReconcileHistory({rpc,ledger,wallet,force:true,apply:flag('apply')});
@@ -93,6 +96,7 @@ Sell returns the market quote asset; no implicit conversion, claim or route chan
  if(cmd==='portfolio'){await report(rpc,ledger,wallet);return;}
  if(cmd==='recover'){
   const o=(await ledger.read()).operations[args[0]];if(!o)throw new Error('Unknown request ID; run operations');
+  if(o.workflow==='SALE_BNB_V1'){await outcome(await saleBNB.recover(args[0]),args[0],wallet);return;}
   const engine=o.workflow==='EXIT_V1'?exiter:o.workflow==='SELL_V1'?seller:o.workflow==='ERC20_V1'?quote:o.workflow==='DEX_V1'?dex:native;
   const run=()=>engine.settle(args[0],{txHash:opt('tx'),orderId:opt('order-id')});
   await outcome(['SELL_V1','EXIT_V1'].includes(o.workflow)?await run():await ledger.withLock('wallet:56:'+wallet,run),args[0],wallet);return;
@@ -112,7 +116,7 @@ Sell returns the market quote asset; no implicit conversion, claim or route chan
  if(cmd==='sell'){
   if(!flag('request'))throw new Error('Explicit unique --request ID required for sells');
   authorizeTrade(policy,{...options,live:flag('live'),confirmed:flag('confirm'),action:'sell'});
-  await outcome(await seller.sell(config,{requestId,shareBps:Number(opt('share-bps','10000')),slippageBps,live:true,resume:flag('resume')}),requestId,wallet);return;
+  try{await outcome(await (policy.automaticSaleConversion===true?saleBNB:seller).sell(config,{requestId,shareBps:Number(opt('share-bps','10000')),slippageBps,live:true,resume:flag('resume')}),requestId,wallet);}catch(e){if(!e.operation)throw e;await outcome(e.operation,requestId,wallet);process.exitCode=1;}return;
  }
  if(old&&cmd==='buy'){
   authorizeTrade(policy,{...options,live:flag('live'),confirmed:flag('confirm')});

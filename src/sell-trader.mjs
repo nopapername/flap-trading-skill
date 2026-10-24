@@ -1,3 +1,4 @@
+import {linkedSaleParent} from './linked-sale.mjs';
 import {stableConfig} from './core.mjs';
 import {address,fingerprint,integer,json,keyOf} from './core.mjs';
 const terminal=o=>['FINISHED','FAILED'].includes(o.status);
@@ -15,7 +16,7 @@ export class SellTrader {
   if(!v||typeof v.requestId!=='string'||!v.requestId||!Number.isFinite(Number(v.expiresAt))||Number(v.expiresAt)<=Date.now())throw new Error('Malformed or expired sell preview');
   await this.adapter.validate(v,p);this.checkPlan(p,address(p.from));
  }
- async sell(config,{requestId,shareBps=10000,slippageBps=100,live=false,waitMs=30000,resume=false}={}){
+ async sell(config,{requestId,shareBps=10000,slippageBps=100,live=false,waitMs=30000,resume=false,parentId}={}){
   if(!live)throw new Error('Explicit live execution flag required');
   if(!/^[\w-]{1,96}$/.test(requestId||''))throw new Error('Unique request ID required');
   if(!Number.isInteger(shareBps)||shareBps<1||shareBps>10000)throw new Error('Share bps must be 1..10000');
@@ -24,9 +25,10 @@ export class SellTrader {
   const wallet=address((await this.adapter.identity()).wallet);if(!this.expectedWallet||wallet!==address(this.expectedWallet))throw new Error('Wallet mismatch');
   return this.ledger.withLock('wallet:56:'+wallet,async()=>{
    const state=await this.ledger.read(),old=state.operations[requestId],intent=fingerprint({workflow:'SELL_V1',config:stableConfig(config),wallet,shareBps,slippageBps});
-   if(old){if(old.workflow!=='SELL_V1'||old.intent!==intent)throw new Error('Request ID belongs to another intent');if(!resume||old.status!=='PREPARING')return old;}
-   if(Object.entries(state.operations).some(([id,o])=>id!==requestId&&o.wallet?.toLowerCase()===wallet&&!terminal(o)))throw new Error('Unresolved operation exists; recover before another sale');
-   if(!old)await this.patch(requestId,{workflow:'SELL_V1',intent,status:'PREPARING',wallet,config,key:keyOf(config,wallet),shareBps,slippageBps});
+   if(old){if(old.parentId!==parentId)throw new Error('Request parent mismatch');if(old.workflow!=='SELL_V1'||old.intent!==intent)throw new Error('Request ID belongs to another intent');if(!resume||old.status!=='PREPARING')return old;}
+   const linked=linkedSaleParent(state,parentId,requestId,{wallet,config,slippageBps,leg:'sale'});
+   if(Object.entries(state.operations).some(([id,o])=>id!==requestId&&!(linked&&id===parentId)&&o.wallet?.toLowerCase()===wallet&&!terminal(o)))throw new Error('Unresolved operation exists; recover before another sale');
+   if(!old)await this.patch(requestId,{workflow:'SELL_V1',parentId,intent,status:'PREPARING',wallet,config,key:keyOf(config,wallet),shareBps,slippageBps});
    try{
     const s=await this.adapter.assess(config,wallet);
     if(String(s.phase)==='3')throw new Error('Market phase 3 has unclaimed shares; request an explicit claim before selling launched tokens');
@@ -77,12 +79,12 @@ export class SellTrader {
    const units=integer(actual.units),gas=integer(actual.gasWei);if(units<=0n||units!==integer(leg.plan.units))throw new Error('Actual sell units differ from approved plan');
    const quoteOnly=actual.quoteReceivedRaw!==undefined&&(actual.receivedWei===undefined||integer(actual.receivedWei)===0n);
    if(actual.receivedWei===undefined&&!quoteOnly)throw new Error('Actual sale proceeds unavailable');
-   const trade={kind:'sell',asset:'shares',key:op.key,txHash:r.transactionHash,receiptStatus:r.status,block:integer(BigInt(r.blockNumber)).toString(),transactionIndex:integer(BigInt(r.transactionIndex??'0')).toString(),units:units.toString(),gasWei:gas.toString(),receivedWei:quoteOnly?'0':integer(actual.receivedWei).toString(),costUnknown:quoteOnly||actual.costUnknown===true,route:op.config.POOL_TYPE==='ERC20'?'ERC20_INTERNAL':'NATIVE_INTERNAL'};
+   const trade={kind:'sell',asset:'shares',key:op.key,txHash:r.transactionHash,receiptStatus:r.status,blockHash:r.blockHash,block:integer(BigInt(r.blockNumber)).toString(),transactionIndex:integer(BigInt(r.transactionIndex??'0')).toString(),units:units.toString(),gasWei:gas.toString(),receivedWei:quoteOnly?'0':integer(actual.receivedWei).toString(),costUnknown:quoteOnly||actual.costUnknown===true,route:op.config.POOL_TYPE==='ERC20'?'ERC20_INTERNAL':'NATIVE_INTERNAL'};
    if(actual.quoteReceivedRaw!==undefined)trade.quoteReceivedRaw=integer(actual.quoteReceivedRaw).toString();
    const state=await this.ledger.read(),existing=state.trades.find(t=>t.txHash.toLowerCase()===trade.txHash.toLowerCase());
-   if(existing&&fingerprint(existing)!==fingerprint(trade))throw new Error('Conflicting recovered sale');
+   if(existing&&(existing.blockHash&&existing.blockHash!==trade.blockHash||fingerprint({...existing,blockHash:undefined})!==fingerprint({...trade,blockHash:undefined})))throw new Error('Conflicting recovered sale');
    if(!state.markets[op.key])await this.ledger.register(op.key,{config:op.config,wallet:op.wallet,label:'Market '+op.config.MARKET.slice(2,10),historyComplete:false});
-   await this.ledger.addTrade(trade);await this.patch(id,{status:'FINISHED',txHash:trade.txHash,actual:trade});
+   await this.ledger.addTrade(trade);if(existing&&!existing.blockHash&&trade.blockHash)await this.ledger.update(s=>{s.trades.find(t=>t.txHash.toLowerCase()===trade.txHash.toLowerCase()).blockHash=trade.blockHash;});await this.patch(id,{status:'FINISHED',txHash:trade.txHash,actual:trade});
   }catch(e){await this.patch(id,{status:'CONFIRMED_UNREADABLE',error:e.message});}
   return this.get(id);
  }

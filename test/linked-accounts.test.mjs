@@ -1,0 +1,5 @@
+import test from'node:test';import assert from'node:assert/strict';import{reconcileAccounts}from'../src/accounts.mjs';
+test('linked proceeds never dilute pre-existing quote basis; only linked lot realizes PnL',()=>{
+ const wallet='w',token='quote',key='m',s={markets:{[key]:{wallet,config:{QUOTE_TOKEN:token}}},operations:{f:{wallet,config:{QUOTE_TOKEN:token},fundingActual:{hash:'fund',block:'1',receivedRaw:'100',principalWei:'1000',gasWei:'0'}},p:{wallet,workflow:'SALE_BNB_V1',saleId:'sale',exitId:'exit',actual:{costWei:'50'}},sale:{wallet,parentId:'p',actual:{txHash:'salehash'}},exit:{wallet,parentId:'p'}},trades:[{kind:'buy',key,asset:'shares',units:'1',spentWei:'50',gasWei:'0',txHash:'buyhash',block:'2'},{kind:'sell',key,asset:'shares',units:'1',quoteReceivedRaw:'10',gasWei:'0',txHash:'salehash',block:'3'}],cashSettlements:[{requestId:'exit',wallet,token,txHash:'exithash',actualSpentRaw:'10',gasWei:'0',actualOutputWei:'100',block:'4'}]};
+ const a=reconcileAccounts(s,wallet);assert.equal(a.quoteBalances[token].quantityRaw,'100');assert.equal(a.quoteBalances[token].costWei,'1000');assert.equal(a.dispositions[0].realizedPnlWei,'50');
+});

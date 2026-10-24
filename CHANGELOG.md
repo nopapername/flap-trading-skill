@@ -1,3 +1,11 @@
+# 0.1.5
+
+- Add separately authorized explicit sale→BNB workflow with fixed child intents, exact current-sale proceeds conversion, no pre-existing balance sweep or automatic retry.
+- Batch pinned source token reads; keep simulations, risk, receipt and fresh execution checks. Recover provably unsubmitted stages and legacy interrupted sales without duplicate submission.
+- Prove actual native output with bounded transaction traces and canonical checks; missing data remains unknown, bounded archive repair runs in background.
+- Isolate sale proceeds cost lots, deduct all Gas once, show current sale realized PnL alongside all holdings and update fully covered historical rows.
+- Read-only/offline validation only; no real transactions for this release.
+
 # 0.1.4
 
 - Batch independent resolver bindings/metadata reads and reuse private, wallet/config/RPC-bound initial snapshots for up to 15 seconds. Existing quote-balance and sell planning avoid duplicate assessments; funding/approval paths refresh again.

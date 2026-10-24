@@ -2,6 +2,8 @@ import {encodeFunctionData,decodeAbiParameters,parseAbi} from 'viem';
 import {address,parseUnits,formatUnits,fingerprint} from './core.mjs';
 import {NATIVE} from './route.mjs';
 import {confirmedTransaction,netTokenReceived} from './execution.mjs';
+import {proveNativeProceeds} from './native-proceeds.mjs';
+import {linkedSaleParent} from './linked-sale.mjs';
 const abi=parseAbi(['function balanceOf(address) view returns(uint256)','function decimals() view returns(uint8)','function symbol() view returns(string)']);
 const final=o=>['FINISHED','FAILED'].includes(o.status);
 const validHash=h=>typeof h==='string'&&/^0x[0-9a-f]{64}$/i.test(h);
@@ -10,7 +12,7 @@ export class ExitTrader {
  async tokenRead(token,name,wallet,block='latest'){
   return this.rpc.result('eth_call',[{to:token,data:encodeFunctionData({abi,functionName:name,args:name==='balanceOf'?[wallet]:[]})},block]);
  }
- async exit(token,{amount='all',requestId,slippageBps=100,live=false,waitMs=30000}={}){
+ async exit(token,{amount='all',requestId,parentId,slippageBps=100,live=false,waitMs=30000,resume=false}={}){
   if(!live)throw new Error('Explicit live execution flag required');
   token=address(token);if(token===NATIVE.toLowerCase())throw new Error('Explicit source ERC20 token required');
   if(typeof amount!=='string')throw new Error('Exact decimal string amount required');
@@ -20,15 +22,22 @@ export class ExitTrader {
   if(BigInt(await this.rpc.result('eth_chainId',[]))!==56n)throw new Error('BNB Chain 56 required');
   return this.ledger.withLock('wallet:56:'+wallet,async()=>{
    const state=await this.ledger.read(),intent=fingerprint({workflow:'EXIT_V1',token,amount,slippageBps,wallet}),old=state.operations[requestId];
-   if(old){if(old.intent!==intent)throw new Error('Request ID belongs to another intent');return old;}
-   if(Object.values(state.operations).some(o=>o.wallet===wallet&&!final(o)))throw new Error('Unresolved operation exists');
-   const code=await this.rpc.result('eth_getCode',[token,'latest']);if(typeof code!=='string'||!/^0x(?:[0-9a-f]{2})+$/i.test(code))throw new Error('Source token is not deployed');
-   const balance=BigInt(await this.tokenRead(token,'balanceOf',wallet)),decimals=Number(BigInt(await this.tokenRead(token,'decimals',wallet)));
+   const linked=linkedSaleParent(state,parentId,requestId,{wallet,token,amount,slippageBps,leg:'exit'});
+   if(old){if(old.intent!==intent||(old.parentId??null)!==(parentId??null))throw new Error('Request ID belongs to another intent');if(!resume||old.status!=='PREPARING'||old.submittedAt||old.orderId||old.txHash)return old;}
+   if(Object.entries(state.operations).some(([id,o])=>id!==requestId&&o.wallet===wallet&&!final(o)&&!(linked&&id===parentId)))throw new Error('Unresolved operation exists');
+   const block=await this.rpc.block(),tag=block.number;
+   const calls=[{method:'eth_getCode',params:[token,tag]},...['balanceOf','decimals','symbol'].map(name=>({method:'eth_call',params:[{to:token,data:encodeFunctionData({abi,functionName:name,args:name==='balanceOf'?[wallet]:[]})},tag]}))];
+   const reads=this.rpc.batch?await this.rpc.batch(calls):await Promise.all(calls.map(async c=>({result:await this.rpc.result(c.method,c.params)})));
+   for(const read of reads)if(read.error)throw new Error('Source token read failed');
+   const code=reads[0].result;if(typeof code!=='string'||!/^0x(?:[0-9a-f]{2})+$/i.test(code))throw new Error('Source token is not deployed');
+   const balance=BigInt(reads[1].result),decimals=Number(BigInt(reads[2].result));
    if(!Number.isInteger(decimals)||decimals<0||decimals>36)throw new Error('Unsupported token decimals');
-   const [symbol]=decodeAbiParameters([{type:'string'}],await this.tokenRead(token,'symbol',wallet));if(!symbol||typeof symbol!=='string')throw new Error('Unreadable token symbol');
+   const [symbol]=decodeAbiParameters([{type:'string'}],reads[3].result);if(!symbol||typeof symbol!=='string')throw new Error('Unreadable token symbol');
    const input=amount==='all'?balance:parseUnits(amount,decimals);if(input<=0n||input>balance)throw new Error('Source amount exceeds available balance or is zero');
+   if(old&&BigInt(old.amountRaw)!==input)throw new Error('Frozen exit amount changed; no submission');
+   if(linked&&(input!==BigInt(state.operations[parentId].exitAmountRaw)||decimals!==state.operations[parentId].config.QUOTE_DECIMALS))throw new Error('Linked exit raw amount/decimals mismatch');
    const quantity=formatUnits(input,decimals);
-   await this.ledger.setOperation(requestId,{workflow:'EXIT_V1',intent,status:'PREPARING',wallet,token,amount,amountRaw:input.toString(),sourceDecimals:decimals,sourceSymbol:symbol,preBalanceRaw:balance.toString(),slippageBps});
+   await this.ledger.setOperation(requestId,{workflow:'EXIT_V1',...(parentId?{parentId}:{}),intent,status:'PREPARING',wallet,token,amount,amountRaw:input.toString(),sourceDecimals:decimals,sourceSymbol:symbol,preBalanceRaw:balance.toString(),slippageBps});
    const args=['--fromTokenQty',quantity,'--fromToken',token,'--toToken',NATIVE,'--binanceChainId','56','--slippage',String(slippageBps/100)];
    try{
     const q=await this.baw.run(['market-order','quote',...args]);
@@ -73,19 +82,21 @@ export class ExitTrader {
      const spent=-netTokenReceived(c.receipt,op.token,op.wallet);if(spent<=0n||spent>BigInt(op.amountRaw))throw new Error('Actual source spending outside declared input');
      const remaining=BigInt(await this.tokenRead(op.token,'balanceOf',op.wallet,c.receipt.blockNumber));
      const reported=order?.toTokenActualQty??null;if(reported!==null)parseUnits(reported);
-     const cash={workflow:'EXIT_V1',requestId:id,txHash:hash,wallet:op.wallet,token:op.token,amountRaw:op.amountRaw,sourceSpentRaw:spent.toString(),actualSpentRaw:spent.toString(),unspentRaw:(BigInt(op.amountRaw)-spent).toString(),refundRaw:(BigInt(op.amountRaw)-spent).toString(),remainingRaw:remaining.toString(),gasWei:c.gasWei.toString(),reportedBNB:reported,actualOutputWei:null,costUnknown:true,block:c.receipt.blockNumber,transactionIndex:c.receipt.transactionIndex};
+     const native=await proveNativeProceeds(this.rpc,hash,{wallet:op.wallet,from:op.wallet,value:'0',notBefore:op.submittedAt});
+     if(!native||native.proof.blockHash!==c.receipt.blockHash||native.proof.block!==c.receipt.blockNumber||native.gasWei!==c.gasWei.toString())throw new Error('Exit canonical native proof changed or is unconfirmed');
+     const cash={workflow:'EXIT_V1',requestId:id,txHash:hash,wallet:op.wallet,token:op.token,amountRaw:op.amountRaw,sourceSpentRaw:spent.toString(),actualSpentRaw:spent.toString(),unspentRaw:(BigInt(op.amountRaw)-spent).toString(),refundRaw:(BigInt(op.amountRaw)-spent).toString(),remainingRaw:remaining.toString(),gasWei:c.gasWei.toString(),reportedBNB:reported,actualOutputWei:native.actualOutputWei,nativeProof:native.proof,costUnknown:true,block:c.receipt.blockNumber,transactionIndex:c.receipt.transactionIndex};
      await this.ledger.update(s=>{
       const current=s.operations[id];if(final(current))return;
       s.cashSettlements??=[];const previous=s.cashSettlements.find(r=>r.txHash.toLowerCase()===hash);
       if(previous&&(previous.wallet!==cash.wallet||previous.token!==cash.token||previous.actualSpentRaw!==cash.actualSpentRaw))throw new Error('Conflicting cash settlement proof');
-      const keys=new Set(s.trades.filter(t=>{
+      const keys=new Set(op.parentId?[]:s.trades.filter(t=>{
        if(t.kind!=='buy'||t.asset!=='tokens')return false;
        const market=s.markets[t.key],source=t.token||market?.config?.TOKEN||market?.config?.PREDICTED_TOKEN;
        return source?.toLowerCase()===op.token&&(market?.wallet?.toLowerCase()===op.wallet||t.key?.startsWith('56:'+op.wallet+':'));
       }).map(t=>t.key));
       if(keys.size>1)throw new Error('Source token matches multiple market ledgers; reconciliation required');
       if(keys.size===1){
-       const key=[...keys][0],sale={kind:'sell',asset:'tokens',key,token:op.token,units:spent.toString(),receivedWei:'0',gasWei:c.gasWei.toString(),proceedsUnknown:true,txHash:hash,receiptStatus:c.receipt.status,block:c.receipt.blockNumber,transactionIndex:c.receipt.transactionIndex||'0x0',route:'TOKEN_BNB_EXIT'};
+       const key=[...keys][0],sale={kind:'sell',asset:'tokens',key,token:op.token,units:spent.toString(),receivedWei:native.actualOutputWei??'0',gasWei:c.gasWei.toString(),proceedsUnknown:native.actualOutputWei===null,txHash:hash,receiptStatus:c.receipt.status,block:c.receipt.blockNumber,transactionIndex:c.receipt.transactionIndex||'0x0',route:'TOKEN_BNB_EXIT'};
        const priorTrade=s.trades.find(t=>t.txHash.toLowerCase()===hash);
        if(priorTrade&&(priorTrade.kind!=='sell'||priorTrade.asset!=='tokens'||priorTrade.key!==key||priorTrade.units!==sale.units))throw new Error('Conflicting token sale proof');
        if(!priorTrade)s.trades.push(sale);

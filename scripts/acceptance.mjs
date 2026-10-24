@@ -66,6 +66,9 @@ export async function runAcceptance(){
   await writeFile(control,json({connected:true,fundingStatus:'PENDING'}));
   await cli(['init','--wallet',wallet,'--budget','0.1','--slippage-bps','100','--mode','auto','--allow-quote-conversion']);
   const policy=await loadPolicy(home);check('one-time isolated auto authorization retains separate audit/direct opt-ins',()=>{assert.equal(policy.mode,'auto');assert.equal(policy.preferVerifiedBNBDirect,false);assert.equal(policy.auditUnavailableAcknowledged,false);});
+  check('automatic buy does not implicitly authorize sale proceeds conversion',()=>assert.equal(policy.automaticSaleConversion,false));
+  const saleHome=join(dir,'sale-policy');await cli(['init','--wallet',wallet,'--budget','0.1','--slippage-bps','100','--mode','confirm','--auto-sale-to-bnb','--data-dir',saleHome]);
+  const salePolicy=await loadPolicy(saleHome);check('sale proceeds conversion is a separate explicit first-use opt-in',()=>{assert.equal(salePolicy.automaticSaleConversion,true);assert.equal(salePolicy.automaticSell,false);});
   check('authorized CONFIG buy needs no second confirmation in policy logic',()=>authorizeTrade(policy,{live:true,budget:'0.1',slippageBps:100,needsConversion:true,env:{}}));
   check('test environment still prevents executing that authorization',()=>assert.throws(()=>authorizeTrade(policy,{live:true,env}),/read-only/));
   d=JSON.parse(await cli(['doctor']));check('connected wallet and personal policy match',()=>{assert.equal(d.wallet.matchesPolicy,true);assert.equal(d.wallet.developerMode,true);});

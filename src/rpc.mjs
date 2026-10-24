@@ -1,6 +1,6 @@
 import {encodeFunctionData,decodeFunctionResult,parseAbi,toHex} from 'viem';
 import {address,calldata,decodeProbe,errorText,PROBES} from './core.mjs';
-const READS=new Set(['eth_chainId','eth_blockNumber','eth_getBlockByNumber','eth_call','eth_getBalance','eth_estimateGas','eth_gasPrice','eth_getTransactionReceipt','eth_getTransactionByHash','eth_getCode','eth_getLogs']);
+const READS=new Set(['debug_traceTransaction','eth_chainId','eth_blockNumber','eth_getBlockByNumber','eth_call','eth_getBalance','eth_estimateGas','eth_gasPrice','eth_getTransactionReceipt','eth_getTransactionByHash','eth_getCode','eth_getLogs']);
 export class Rpc {
  constructor({url='https://bsc-dataseed.bnbchain.org',transport,timeout=15000}={}){
   this.id=0;this.requests=0;this.calls=0;
