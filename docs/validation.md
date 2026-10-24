@@ -1,3 +1,10 @@
+# Validation — v0.1.11
+
+- Scope: onboarding balance display and concise post-sale chat reporting; documentation and version metadata only.
+- Read-only fixture suite: 260/260 passed; no live wallet transactions.
+- Skill format validator and release source scanner: passed.
+- Release tarball: 89 files verified against source (package.json semantic comparison because pnpm reorders scripts; all others byte-identical). Runtime state and dependencies excluded.
+
 # Validation — v0.1.10
 
 Subsequent first-install acceptance of the actual GitHub release: standard tagged Skill installation and clean tgz dependency install passed, all 89 packaged files matched; packaged suite260/260, first-use22/22 with walletMutations=0, additional synthetic post-trade display checks9/9. First-use22 is also included in the full suite; these are not additive unique counts. See [v0.1.10 first-install report](first-use-v0.1.10.md). No new real transactions, login or source/package changes during this acceptance.

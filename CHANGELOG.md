@@ -1,3 +1,9 @@
+# 0.1.11
+
+- After installation/setup and verified wallet connection, query and display the current BNB balance with snapshot time; failed reads remain unknown.
+- Keep routine post-sale chat reports focused on BNB balance, remaining market holdings and applicable realized PnL. Retain residual quote-token balances in local snapshots/accounting and disclose them on request or actionable conversion exceptions, without sweeping funds.
+- Documentation and version metadata only; execution engines and authorization defaults are unchanged. Validation uses read-only fixtures only.
+
 # 0.1.10
 
 - Add a sell dispatcher: internal market sale retains the existing proceeds-only conversion; graduated deployed wallet tokens exit directly to BNB with exact percentage/decimals. Unclaimed-only shares prompt without any claim, mixed holdings sell only actual tokens.
