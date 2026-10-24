@@ -3,16 +3,18 @@ name: flap-trading
 description: Use when a user wants to install Flap Trading, set up automatic CONFIG buying, or sends a Flap predicted token address, market CONFIG or agent bonding curve link to buy, query or recover a transaction on BNB Chain.
 metadata:
   author: nopapername
-  version: 0.1.5
+  version: 0.1.6
 ---
 
 # Flap Trading
 
-让用户只做三件事：让 AI 安装、首次连接并授权、以后发送 CONFIG。终端命令、绑定检查和后台交易阶段由 AI 处理。社区项目，通过币安官方 `baw` 操作钱包。
+让用户只做两件事：用一条消息完成安装及首次配置，以后发送 CONFIG。终端命令、绑定检查和后台交易阶段由 AI 处理。社区项目，通过币安官方 `baw` 操作钱包。
 
 ## 首次使用
 
-读取 [安装与首次设置](references/setup.md)。完成依赖安装、钱包连接指引和一次性授权收集；不要要求用户自己研究 Market、Probe 或 CLI。只有确实缺少用户选择、扫码或 App 操作时才询问。
+读取 [安装与首次设置](references/setup.md)。先从安装请求的同一条消息提取预算、滑点、模式和可选权限，再连续完成依赖安装、钱包连接指引和授权保存；不要要求用户自己研究 Market、Probe 或 CLI。只有确实缺少用户选择、扫码或 App 操作时才询问。
+
+用户已在安装消息中明确的规则不要求复述或二次确认；只合并询问缺失选择，并等待必要的 App 扫码/开发者模式操作。钱包验证前不写入绑定授权。设置完成后简短展示完整钱包地址、预算、滑点、自动模式及可选权限，告诉用户直接发送 CONFIG；不购买文档示例。
 
 首次必须得到这个用户自己的预算、滑点和模式选择。自动模式应明确包含“以后发送 CONFIG／预测 CA 即买入”；其他底池兑换、已发行代币直购和审计不可用时继续交易分别由用户选择。用 `init` 保存实际授权，不把文档示例或作者权限当成授权。用户未授权自动模式时，先查询或确认。测试/验收始终使用 `FLAP_READ_ONLY=1`，只用模拟执行工具。
 

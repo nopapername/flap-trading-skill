@@ -1,3 +1,9 @@
+# 0.1.6
+
+- Merge installation and initial configuration into one editable user prompt; continue through dependency checks, wallet connection and authorized policy persistence without asking users to repeat rules.
+- Reuse explicit choices, collect only missing choices once, and report the verified wallet and saved permissions before accepting the next CONFIG. App confirmation remains required; examples do not authorize trading.
+- Documentation/onboarding update only; transaction execution and permission defaults are unchanged. Release validation uses read-only fixtures, not real trades.
+
 # 0.1.5
 
 - Add separately authorized explicit sale→BNB workflow with fixed child intents, exact current-sale proceeds conversion, no pre-existing balance sweep or automatic retry.

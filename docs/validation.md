@@ -1,3 +1,9 @@
+# Validation — v0.1.6
+
+Onboarding documentation update: README combines installation and first configuration into one editable user message; SKILL/setup reuse explicit rules and ask only for missing choices. No transaction logic or permission defaults changed; CLI version metadata updated.
+
+Fresh first-use acceptance: **20/20**, walletMutations=0. Release tarball installed into a clean temporary directory with offline locked dependencies and lifecycle scripts disabled; packaged suite **239/239**. Skill frontmatter validation and release source scan passed (86 files; runtime state excluded). Packaged file bytes were compared against the source tree. All checks used `FLAP_READ_ONLY=1` and synthetic wallet/RPC fixtures. No real App login, developer-mode change, approvals, signatures or trades; AI conversation quality and real-funds execution are not established by these fixture tests.
+
 # Validation — v0.1.5
 
 Source and clean installed package: **239/239** each. First-use CLI acceptance: **20/20**, walletMutations=0. Personal tool compatibility: **66/66**. All implementation/testing ran with `FLAP_READ_ONLY=1`; no real sale, conversion, signature, approval or wallet settings change. Independent review passed after fixes for raw quote amount/decimals, PREPARING recovery, isolated proceeds basis, aggregate unknowns, canonical re-inclusion proof and interrupted v0.1.4 sale recovery. CI remains a template; checks are local.
