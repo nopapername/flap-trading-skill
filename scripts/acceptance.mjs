@@ -80,7 +80,11 @@ export async function runAcceptance(){
   const preparedRecovery={config,wallet,key,amountWei:'100000000000000001',inputData:receiptFixture.transaction.input};
   await ledger.setOperation('fixture-buy',{status:'UNKNOWN',wallet,prepared:preparedRecovery});
   const operations=await cli(['operations']);check('interrupted operation is visible',()=>assert.ok(operations.includes('fixture-buy')));
-  await cli(['recover','fixture-buy','--tx',receiptFixture.transaction.hash]);await cli(['recover','fixture-buy','--tx',receiptFixture.transaction.hash]);
+  const recoveryOutput=(await cli(['recover','fixture-buy','--tx',receiptFixture.transaction.hash])).trim().split('\n').map(JSON.parse);
+  const job=recoveryOutput.find(x=>x.type==='portfolio-queued');assert.ok(job?.jobId);
+  await cli(['recover','fixture-buy','--tx',receiptFixture.transaction.hash]);
+  const jobPortfolio=JSON.parse(await cli(['portfolio-job',job.jobId,'--wait-ms','10000','--json']));
+  check('confirmed recovery queues independent readonly all-market refresh with exact basis',()=>{assert.equal(jobPortfolio.rows[0].cost,'100021000000000001');assert.equal(jobPortfolio.rows[0].name,'EXAMPLE');});
   let state=await ledger.read();check('canonical native recovery is idempotent and imports one synthetic receipt',()=>{assert.equal(state.operations['fixture-buy'].status,'FINISHED');assert.equal(state.trades.length,1);});
   const portfolio=JSON.parse(await cli(['portfolio','--json']));check('holdings show full CA, verified synthetic name, shares and exact cost',()=>{const row=portfolio.rows[0];assert.equal(row.name,'EXAMPLE');assert.equal(row.config.PREDICTED_TOKEN,ca);assert.equal(row.shares,units);assert.equal(row.cost,'100021000000000001');});
   const offline=await cli(['portfolio','--offline']);check('saved holdings remain available after restart',()=>assert.ok(offline.includes('EXAMPLE')));

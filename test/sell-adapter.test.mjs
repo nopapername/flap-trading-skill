@@ -10,3 +10,11 @@ test('closed or unreadable sale stops before any preview',async()=>{
  const a=new SellAdapter({rpc:{snapshot:async()=>({phase:'3',positionProbe:{HELD_SHARES:'100'}})},baw:{}});
  await assert.rejects(a.planSell(c,w,10000,100),/MARKET_NOT_OPEN/);
 });
+test('sell planning reuses only its own current assessment and still validates holdings',async()=>{
+ let snapshots=0;const rpc={snapshot:async()=>{snapshots++;return {phase:'1',positionProbe:{HELD_SHARES:'100',SELL_OK:'1'}};},call:async()=>({error:{data:encodeErrorResult({abi:parseAbi(['error Error(string)']),errorName:'Error',args:['SHARES=100;OUT_RAW=90;MIN_RAW=88;BLOCK=12;END']})}})};
+ const a=new SellAdapter({rpc}),assessment=await a.assess(c,w);
+ await a.planSell(c,w,10000,100,{assessment});assert.equal(snapshots,1);
+ await a.planSell(c,w,10000,100,{assessment:{...assessment}});assert.equal(snapshots,2);
+ const now=Date.now;Date.now=()=>now()+15001;
+ try{await a.planSell(c,w,10000,100,{assessment});assert.equal(snapshots,3);}finally{Date.now=now;}
+});

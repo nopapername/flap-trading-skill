@@ -1,13 +1,19 @@
 import {encodeFunctionData,parseAbi} from 'viem';
-import {decodeProbe,address} from './core.mjs';
+import {decodeProbe,address,fingerprint} from './core.mjs';
 import {confirmedTransaction,validateContractPreview,netTokenReceived} from './execution.mjs';
 export class SellAdapter {
+ #assessments=new WeakMap();
  constructor({rpc,baw}){Object.assign(this,{rpc,baw});}
  async identity(){const who=await this.baw.identity();if(!who.settings.devMode?.enabled)throw new Error('Developer Mode disabled');return who;}
- assess(c,w){return this.rpc.snapshot(c,w,'portfolio');}
- async planSell(c,w,shareBps,slippageBps){
+ async assess(c,w){
+  const at=Date.now(),s=await this.rpc.snapshot(c,w,'portfolio');
+  this.#assessments.set(s,{config:fingerprint(c),wallet:address(w),at,snapshot:structuredClone(s)});return s;
+ }
+ async planSell(c,w,shareBps,slippageBps,{assessment}={}){
   if(!Number.isInteger(shareBps)||shareBps<1||shareBps>10000||!Number.isInteger(slippageBps)||slippageBps<0||slippageBps>500)throw new Error('Invalid sale percentage/slippage');
-  const s=await this.assess(c,w);if(s.phase!=='1')throw new Error('MARKET_NOT_OPEN; launched shares require a separately authorized claim');
+  const entry=assessment&&this.#assessments.get(assessment);
+  const reusable=entry&&entry.config===fingerprint(c)&&entry.wallet===address(w)&&Date.now()>=entry.at&&Date.now()-entry.at<=15000;
+  const s=reusable?structuredClone(entry.snapshot):await this.assess(c,w);if(s.phase!=='1')throw new Error('MARKET_NOT_OPEN; launched shares require a separately authorized claim');
   if(s.positionProbe.SELL_OK!=='1'||BigInt(s.positionProbe.HELD_SHARES)<=0n)throw new Error('NO_SHARES or SELL_OK != 1');
   const data=encodeFunctionData({abi:parseAbi(['function sellPlanCustomProbe(uint256,uint256)']),functionName:'sellPlanCustomProbe',args:[BigInt(shareBps),BigInt(slippageBps)]});
   const erc20=c.POOL_TYPE==='ERC20',required=['SHARES',erc20?'OUT_RAW':'OUT_WEI',erc20?'MIN_RAW':'MIN_WEI','BLOCK'];

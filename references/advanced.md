@@ -1,6 +1,6 @@
 # Flap Trading Skill
 
-独立、可分发的社区 AI Skill，通过币安官方 Agentic Wallet 操作 BNB Chain 上的 Flap Agent 内盘。**不是币安或 Flap 官方产品。** 当前版本0.1.3，尚未以真实资金验证分发版本。
+独立、可分发的社区 AI Skill，通过币安官方 Agentic Wallet 操作 BNB Chain 上的 Flap Agent 内盘。**不是币安或 Flap 官方产品。** 当前版本0.1.4，尚未以真实资金验证分发版本。
 
 支持：预测 CA / 完整 CONFIG / Flap 链接解析；最高可买份额；原生 BNB 和 ERC20 内盘；经验证的已发行代币 BNB 直购；显式内盘卖出及代币→BNB 兑换；订单恢复；多市场持仓和资金成本对账。
 
@@ -92,3 +92,7 @@ npm pack --ignore-scripts
 [协议 ABI 来源](protocol.md) · MIT License
 
 GitHub Actions 模板见 [docs/github-actions-test.yml](https://github.com/nopapername/flap-trading-skill/blob/main/docs/github-actions-test.yml)。首次上传所用令牌没有 workflow 权限，因此模板尚未启用；具有相应权限后，将其复制到 .github/workflows/test.yml 即可。上述本地及安装包测试已通过。
+
+## 成交后统计
+
+`buy`／`sell`／`exit`／确认完成的 `recover` 先返回交易结果，再返回独立持仓任务 ID。AI 自动用 `portfolio-job ID --wait-ms 30000` 取表；后台任务不持有交易队列，归档网络读取在钱包锁之外。`portfolio-job ID --resume` 只恢复统计，不恢复或重试金融操作。独立任务强制 `FLAP_READ_ONLY=1`，持仓快照须不早于触发它的确认区块；错误字段保留未知。

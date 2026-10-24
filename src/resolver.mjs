@@ -1,6 +1,6 @@
 import {readFile} from 'node:fs/promises';
 import {parseAbi,encodeFunctionData,decodeFunctionResult} from 'viem';
-import {address,calldata,CONTRACTS,decodeProbe,errorText,parseConfig,ZERO} from './core.mjs';
+import {address,calldata,CONTRACTS,decodeProbe,errorText,parseConfig,ZERO,fingerprint} from './core.mjs';
 import {READER_ABI} from './reader.mjs';
 
 // Factory and Market interfaces verified against the official Flap component.
@@ -36,32 +36,42 @@ async function classify(input,readText){
 const mismatch=()=>{throw new Error('Market identity/binding mismatch');};
 const nonzero=value=>{const result=address(value);if(result===ZERO)throw new Error('Market/Probe is not registered');return result;};
 const nullable=value=>value===ZERO?null:value;
+const contexts=new WeakMap();
+// Resolver-issued contexts are bound to the RPC instance, wallet and full intent.
+// Private copies prevent public display fields from changing a trading decision.
+export function resolvedSnapshot(context,{rpc,config,wallet}){
+ const entry=context&&contexts.get(context);
+ if(!entry||entry.rpc!==rpc||entry.wallet!==address(wallet)||entry.binding!==fingerprint(config)||Date.now()<entry.at||Date.now()-entry.at>15000)return null;
+ return {...structuredClone(entry.snapshot),readStartedAt:entry.at};
+}
 
 /** Resolve user input using only pinned on-chain reads; user URLs are never fetched. */
-export async function resolveInput(input,{rpc,wallet,readText=path=>readFile(path,'utf8')}={}){
+export async function resolveInput(input,{rpc,wallet,readText=path=>readFile(path,'utf8'),returnContext=false}={}){
+ const resolvedAt=Date.now();
  const source=await classify(input,readText);
  wallet=address(wallet);
  const block=await rpc.block(),tag=block.number;
  const tx=(to,data)=>({from:wallet,to,value:'0x0',data});
- const read=async(to,functionName,args=[],abi=ABI)=>{
-  const response=await rpc.call('eth_call',[tx(to,encodeFunctionData({abi,functionName,args})),tag]);
-  if(response.error)throw new Error(errorText(response));
-  return decodeFunctionResult({abi,functionName,data:response.result});
+ const readMany=async specs=>{
+  const calls=specs.map(([to,functionName,args=[],abi=ABI])=>({method:'eth_call',params:[tx(to,encodeFunctionData({abi,functionName,args})),tag]}));
+  const responses=rpc.batch?await rpc.batch(calls):await Promise.all(calls.map(c=>rpc.call(c.method,c.params)));
+  return responses.map((response,i)=>{if(response.error)throw new Error(errorText(response));return decodeFunctionResult({abi:specs[i][3]??ABI,functionName:specs[i][1],data:response.result});});
  };
+ const read=async(...spec)=>(await readMany([spec]))[0];
  let market=source.config?.MARKET;
  if(!market){
   if(source.kind==='market')market=source.requested;
   else{
-   const [mapped,registered]=await Promise.all([read(CONTRACTS.FACTORY,'marketOfToken',[source.requested]),read(CONTRACTS.FACTORY,'isMarket',[source.requested])]);
+   const [mapped,registered]=await readMany([[CONTRACTS.FACTORY,'marketOfToken',[source.requested]],[CONTRACTS.FACTORY,'isMarket',[source.requested]]]);
    const mappedMarket=address(mapped);
    if(registered&&mappedMarket!==ZERO&&mappedMarket!==source.requested)throw new Error('Ambiguous address binding; supply CONFIG');
    market=mappedMarket!==ZERO?mappedMarket:source.kind==='address'&&registered?source.requested:ZERO;
   }
  }
  if(market===ZERO)throw new Error('Unknown address; supply the full CONFIG');
- const [registered,probeValue,portalValue,predictedValue,tokenValue]=await Promise.all([
-  read(CONTRACTS.FACTORY,'isMarket',[market]),read(CONTRACTS.FACTORY,'probeOfMarket',[market]),
-  read(market,'portal'),read(market,'predictedToken'),read(market,'token')
+ const [registered,probeValue,portalValue,predictedValue,tokenValue]=await readMany([
+  [CONTRACTS.FACTORY,'isMarket',[market]],[CONTRACTS.FACTORY,'probeOfMarket',[market]],
+  [market,'portal'],[market,'predictedToken'],[market,'token']
  ]);
  if(!registered)throw new Error('Market is not registered');
  const probe=nonzero(probeValue),predicted=nonzero(predictedValue),token=address(tokenValue);
@@ -72,7 +82,7 @@ export async function resolveInput(input,{rpc,wallet,readText=path=>readFile(pat
  const quote=address(asset.QUOTE),decimals=Number(asset.DECIMALS);
  let symbol='BNB';
  if(quote!==ZERO){
-  const [tokenDecimals,tokenSymbol]=await Promise.all([read(quote,'decimals'),read(quote,'symbol')]);
+  const [tokenDecimals,tokenSymbol]=await readMany([[quote,'decimals'],[quote,'symbol']]);
   if(String(tokenDecimals)!==asset.DECIMALS)mismatch();
   symbol=tokenSymbol;
  }
@@ -93,5 +103,9 @@ export async function resolveInput(input,{rpc,wallet,readText=path=>readFile(pat
  if((phase==='3'||readerPair!==ZERO)&&routePair!==readerPair)mismatch();
  config.PHASE=phase;config.PAIR=nullable(address(route.PAIR));
  if(source.config?.PAIR&&source.config.PAIR!==config.PAIR)mismatch();
- return config;
+ if(!returnContext)return config;
+ if(phase==='1')snapshot.buyCapacityProbe=(await rpc.probe(config,wallet,'buyCapacityProbe',[],tag)).fields;
+ const context={config,snapshot:structuredClone(snapshot),block:structuredClone(block),resolvedAt};
+ contexts.set(context,{rpc,wallet,binding:fingerprint(config),at:resolvedAt,snapshot:structuredClone(snapshot)});
+ return context;
 }

@@ -1,3 +1,13 @@
+# Validation — v0.1.4
+
+Source suite: **207/207**. Clean release tarball installed using offline locked dependencies: **207/207**. Separate first-use CLI acceptance: **18/18**, walletMutations=0. Personal-tool compatibility: **66/66**. Skill validation and release source scan passed (75 files; runtime data excluded). Independent review found no remaining blockers after atomic job publication and crash/concurrent recovery fixes. GitHub-hosted CI remains unenabled; these are local checks.
+
+All release development and testing used `FLAP_READ_ONLY=1`, synthetic execution boundaries and local read-only wallet/RPC doubles. No new approvals, signatures, trades, transfers, sales, claims or wallet setting changes.
+
+Deterministic read-count regressions: predicted-address mapping 2→1 transport batches; market bindings 5→1; ERC20 metadata 2→1; resolver→route full snapshots 2→1; existing quote assess→plan snapshots 2→1; sell assess→plan snapshots 2→1. This measures eliminated reads, not a live transaction speed guarantee. Funding/approval still force a fresh plan and private contexts expire after 15 seconds measured before reads.
+
+Portfolio tests cover confirmed-only durable/idempotent enqueue, separate statistics and wallet queues, failed statistics read-only resume, minimum receipt block, duplicate workers, orphan statistics locks, immutable concurrent recovery generations, and a real detached worker with the CLI against a local read-only RPC fixture. First-use recovery now waits on its actual queued all-market snapshot and verifies exact basis.
+
 # Validation — v0.1.3
 
 Source suite: 190/190. Includes 13 archive-pool tests (availability switching, wrong chain/head, execution-revert refusal, budgets, cooldown, immutable-cache isolation, singleflight, null/pending behavior and credential redaction) and six automatic-reconciliation tests (repair, skip, backoff, evidence changes, dry runs and concurrent ledger protection). Canonical history proof regressions remain unchanged in behavior.

@@ -31,7 +31,7 @@ export class SellTrader {
     const s=await this.adapter.assess(config,wallet);
     if(String(s.phase)==='3')throw new Error('Market phase 3 has unclaimed shares; request an explicit claim before selling launched tokens');
     if(String(s.phase)!=='1'||String(s.SELL_OK??s.positionProbe?.SELL_OK)!=='1')throw new Error('Internal sell unavailable');
-    const plan=JSON.parse(json(await this.adapter.planSell(config,wallet,shareBps,slippageBps)));this.checkPlan(plan,wallet);
+    const plan=JSON.parse(json(await this.adapter.planSell(config,wallet,shareBps,slippageBps,{assessment:s})));this.checkPlan(plan,wallet);
     const preview=await this.adapter.preview(plan);await this.checkPreview(preview,plan);this.onEvent({type:'preview',kind:'SELL',parsedTx:preview.parsedTx,risks:preview.risks});
     const leg={kind:'SELL',plan,config,wallet,previewId:preview.requestId,submittedAt:Date.now(),result:{}};
     await this.patch(requestId,{status:'SUBMITTING',currentLeg:leg});

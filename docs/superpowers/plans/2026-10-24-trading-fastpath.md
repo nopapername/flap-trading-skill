@@ -1,0 +1,10 @@
+# Trading fast path
+
+Approved goal: reduce duplicate queries, parallelize independent reads, and remove portfolio/archive work from the transaction queue. Preserve highest permitted shares, <=1 BNB principal, existing slippage policy, finite approvals, security simulations, fresh execution plans, canonical receipts and durable idempotency. Development/testing is FLAP_READ_ONLY=1 with no live wallet mutations.
+
+1. Share branded, wallet/config-bound, short-lived initial snapshots across resolution and routing. Remove duplicate pre-assessments when the actual engine and adapter retain policy gates. Never reuse inventory/capacity across funding/approval. Consolidate sell assessments; keep final plan safety and preview checks.
+2. Split portfolio rendering/storage into a read-only service. Trade CLI emits confirmed outcome first, durably queues a deterministic per-trade portfolio job and exits. Spawn a separate FLAP_READ_ONLY worker with execution disabled; it may quote/read/repair local basis but cannot trade. Portfolio jobs use a separate statistics lock, never occupy the wallet transaction lock for slow work. Query/wait/restart jobs via a read-only command, then show the full table in chat. Job failures never change confirmed transaction status or resubmit a trade.
+3. Persist job state, recover abandoned workers without duplicate trading, guard against stale snapshots, preserve all-market and historical holdings. Concurrent ledger updates remain protected by existing history repair version checks.
+4. Test query counts and concurrency deterministically with synthetic adapters, benchmark read round trips without live transactions, run full source/package/install checks and independent review. Release v0.1.4 after passing.
+
+Implementation ledger: query optimization delegated; portfolio jobs/service and CLI integration implemented in-session. Decisions: read-only post-trade worker is one-shot local work, not a scheduled automation; no global cache of latest chain state or credentials; queued snapshots are displayed as queued until actually refreshed.

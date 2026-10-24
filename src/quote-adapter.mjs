@@ -1,19 +1,23 @@
+import {resolvedSnapshot} from './resolver.mjs';
 import {encodeFunctionData,decodeFunctionResult,parseAbi} from 'viem';
-import {address,parseUnits,formatUnits} from './core.mjs';import {solveMaximum} from './search.mjs';
+import {address,parseUnits,formatUnits,fingerprint} from './core.mjs';import {solveMaximum} from './search.mjs';
 import {NATIVE} from './route.mjs';import {auditToken} from './security.mjs';
 import {validateContractPreview,confirmedTransaction,netTokenReceived} from './execution.mjs';
 const tokenAbi=parseAbi(['function balanceOf(address) view returns (uint256)','function allowance(address,address) view returns (uint256)']);
 export class QuoteAdapter {
+ #assessments=new WeakMap();
  constructor({rpc,baw,allowUnavailableAudit=false,onEvent=()=>{},allowQuoteConversion=false}){Object.assign(this,{rpc,baw,allowUnavailableAudit,onEvent,allowQuoteConversion});}
  async identity(){const who=await this.baw.identity();if(who.settings.devMode?.enabled!==true)throw new Error('Developer Mode disabled');return who;}
- async assess(config,wallet){
-  const s=await this.rpc.snapshot(config,wallet,'buy');
+ async assess(config,wallet,{context}={}){
+  const started=Date.now(),s=resolvedSnapshot(context,{rpc:this.rpc,config,wallet})??await this.rpc.snapshot(config,wallet,'buy');
   if(s.phase!=='1')return {...s,balanceRaw:0n};
   if(s.actionStatusProbe.BUY_OK!=='1'||s.buyCapacityProbe.ID!=='1'||BigInt(s.buyCapacityProbe.ROOM_SHARES)<=0n)throw new Error('Internal buy unavailable/ineligible/no capacity');
   const specs=[['balanceOf',[wallet]],['allowance',[wallet,config.MARKET]]];
   const r=await this.rpc.batch(specs.map(([functionName,args])=>({method:'eth_call',params:[{to:config.QUOTE_TOKEN,data:encodeFunctionData({abi:tokenAbi,functionName,args})},s.block]})));
   const values=r.map((x,i)=>{if(x.error)throw new Error(x.error.message);return decodeFunctionResult({abi:tokenAbi,functionName:specs[i][0],data:x.result});});
-  return {...s,balanceRaw:values[0],allowanceRaw:values[1],priorShares:s.buyCapacityProbe.HELD_SHARES};
+  const assessment={...s,balanceRaw:values[0],allowanceRaw:values[1],priorShares:s.buyCapacityProbe.HELD_SHARES};
+  this.#assessments.set(assessment,{config:fingerprint(config),wallet:address(wallet),at:Math.min(started,s.readStartedAt??started),snapshot:structuredClone(assessment)});
+  return assessment;
  }
  async fundingQuote(config,bnb,slippageBps){
   const q=await this.baw.run(['market-order','quote','--fromTokenQty',bnb,'--fromToken',NATIVE,'--toToken',config.QUOTE_TOKEN,'--binanceChainId','56','--slippage',String(slippageBps/100)]);
@@ -46,8 +50,10 @@ export class QuoteAdapter {
   const n=netTokenReceived(c.receipt,p.config.QUOTE_TOKEN,p.wallet);if(n<=0n)throw new Error('Funding has no actual quote receipt');
   return {receivedRaw:n,principalWei:BigInt(c.tx.value),gasWei:c.gasWei,hash,block:c.receipt.blockNumber,transactionIndex:c.receipt.transactionIndex};
  }
- async planBuy(c,w,limit,slip){
-  const s=await this.assess(c,w);if(s.phase!=='1')throw new Error('MARKET_NOT_OPEN');
+ async planBuy(c,w,limit,slip,{assessment}={}){
+  const entry=assessment&&this.#assessments.get(assessment);
+  const reusable=entry&&entry.config===fingerprint(c)&&entry.wallet===address(w)&&Date.now()>=entry.at&&Date.now()-entry.at<=15000;
+  const s=reusable?structuredClone(entry.snapshot):await this.assess(c,w);if(s.phase!=='1')throw new Error('MARKET_NOT_OPEN');
   const balance=s.balanceRaw<limit?s.balanceRaw:limit;
   const max=await solveMaximum({budget:balance,target:BigInt(s.buyCapacityProbe.ROOM_SHARES),quote:async n=>BigInt((await this.rpc.probe(c,w,'quoteBuyProbe',[n],s.block)).fields.SHARES)});
   const at=Date.now(),{fields:p}=await this.rpc.probe(c,w,'buyPlanProbe',[max.amount,BigInt(slip)]);

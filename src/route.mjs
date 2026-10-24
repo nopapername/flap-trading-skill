@@ -1,12 +1,13 @@
+import {resolvedSnapshot} from './resolver.mjs';
 import {address,parseUnits,ZERO} from './core.mjs';
 export const NATIVE='0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 export function validateBudget(budget,slippageBps=100){
  const n=parseUnits(budget);if(n<=0n||n>parseUnits('1'))throw new Error('Budget must be positive and <=1 BNB');
  if(!Number.isInteger(slippageBps)||slippageBps<0||slippageBps>500)throw new Error('Slippage must be 0..500 bps');return n;
 }
-export async function inspectRoute({rpc,baw,config,wallet,budget='1',slippageBps=100}){
+export async function inspectRoute({rpc,baw,config,wallet,budget='1',slippageBps=100,context}){
  validateBudget(budget,slippageBps);
- const snap=await rpc.snapshot(config,wallet,'buy');
+ const snap=resolvedSnapshot(context,{rpc,config,wallet})??await rpc.snapshot(config,wallet,'buy');
  if(snap.phase==='1')return {route:config.POOL_TYPE==='NATIVE_BNB'?'NATIVE_INTERNAL':'ERC20_INTERNAL',snapshot:snap};
  if(snap.phase!=='3')return {route:'UNAVAILABLE',snapshot:snap,error:'Internal market not open; token not launched'};
  const token=address(snap.actionStatusProbe.TOKEN);

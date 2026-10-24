@@ -70,3 +70,14 @@ test('crash after trade and funding debit is recovered without a second debit or
  assert.equal((await x.trader.settle('x',{waitMs:0})).status,'FINISHED');
  const state=await x.ledger.read();assert.equal(state.trades.length,1);assert.equal(state.trades[0].spentWei,'400');assert.equal(state.trades[0].gasWei,'11');assert.equal(state.quoteFundingBalances[lotKey].quantityRaw,'60');assert.equal(x.events.filter(e=>e==='BUY-execute').length,1);
 });
+test('fast path passes the initial assessment only before funding or approval changes state',async()=>{
+ for(const balance of [0n,100n]){
+  const x=await setup(balance),assess=x.adapter.assess,plan=x.adapter.planBuy,seen=[];let first;
+  x.adapter.assess=async(...args)=>{const s=await assess(...args);first??=s;return s;};
+  x.adapter.planBuy=async(...args)=>{seen.push(args[4]?.assessment);return plan(...args);};
+  x.adapter.settleContract=async leg=>leg.kind==='APPROVAL'?{gasWei:1n}:null;
+  let approved=false;const p=x.adapter.planBuy;x.adapter.planBuy=async(...args)=>{const result=await p(...args);if(approved)result.allowanceRaw=1000n;approved=true;return result;};
+  await x.trader.buy(config,{requestId:'one-use',live:true,waitMs:0});
+  assert.equal(seen[0],balance>0n?first:undefined);assert.equal(seen[1],undefined);
+ }
+});

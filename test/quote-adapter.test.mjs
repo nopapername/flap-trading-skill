@@ -27,3 +27,20 @@ function fundingFixture(orderPatch={}){
 test('funding swap recovery verifies official matching order before receipt',async()=>{const {adapter,pending}=fundingFixture();const settled=await adapter.settleSwap(pending);assert.equal(settled.receivedRaw,200n);assert.equal(settled.hash,swapHash);assert.equal(settled.gasWei,6n);});
 test('funding swap hash alone cannot bind an unrelated token receipt to the intent',async()=>{const {adapter,pending,rpc}=fundingFixture();pending.result={txHash:swapHash};rpc.result=async()=>assert.fail('must reject missing official order ID before reading receipt');await assert.rejects(adapter.settleSwap(pending),/Order ID required/);});
 test('mismatched funding official hash or token stops recovery',async()=>{for(const patch of [{txHash:'0x'+'6'.repeat(64)},{toToken:swapWallet},{fromTokenQty:'0.5'}]){const {adapter,pending,rpc}=fundingFixture(patch);rpc.result=async()=>assert.fail('must verify official order before receipt');await assert.rejects(adapter.settleSwap(pending),/identity mismatch/);}});
+import {encodeFunctionResult} from 'viem';
+const planConfig={POOL_TYPE:'ERC20',QUOTE_TOKEN:swapToken,MARKET:'0x'+'c'.repeat(40),PORTAL:'0x'+'d'.repeat(40),QUOTE_DECIMALS:18};
+function planFixture(){
+ let snapshots=0,batches=0;const abi=parseAbi(['function balanceOf(address) view returns(uint256)','function allowance(address,address) view returns(uint256)']);
+ const rpc={snapshot:async()=>{snapshots++;return {phase:'1',block:'0x12',actionStatusProbe:{BUY_OK:'1'},buyCapacityProbe:{ID:'1',ROOM_SHARES:'100',HELD_SHARES:'0'}};},batch:async()=>{batches++;return ['balanceOf','allowance'].map(functionName=>({result:encodeFunctionResult({abi,functionName,result:100n})}));},probe:async(c,w,name,args,block)=>({fields:name==='quoteBuyProbe'?{SHARES:args[0].toString()}:{RULES_OK:'1',MIN_SHARES:'99',BUY_SHARES:'100',BLOCK:'19'}})};
+ return {rpc,adapter:new QuoteAdapter({rpc}),counts:()=>({snapshots,batches})};
+}
+test('existing-quote buy reuses its own fresh assessment without repeating snapshot or balance batch',async()=>{
+ const x=planFixture(),assessment=await x.adapter.assess(planConfig,swapWallet);
+ const p=await x.adapter.planBuy(planConfig,swapWallet,100n,100,{assessment});assert.equal(p.amountRaw,100n);assert.deepEqual(x.counts(),{snapshots:1,batches:1});
+});
+test('foreign or expired assessment refreshes all live balance and capacity fields',async()=>{
+ const x=planFixture(),assessment=await x.adapter.assess(planConfig,swapWallet);
+ await x.adapter.planBuy(planConfig,swapWallet,100n,100,{assessment:{...assessment}});assert.equal(x.counts().snapshots,2);
+ const now=Date.now;Date.now=()=>now()+15001;
+ try{await x.adapter.planBuy(planConfig,swapWallet,100n,100,{assessment});assert.equal(x.counts().snapshots,3);}finally{Date.now=now;}
+});

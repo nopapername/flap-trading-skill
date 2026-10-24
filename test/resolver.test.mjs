@@ -29,3 +29,45 @@ test('CONFIG quote decimals are verified rather than silently replaced',async()=
 test('prelaunch route TOKEN is the predicted CA while actual TOKEN remains null',async()=>{for(const phase of ['1','2']){const x=setup({phase,snapshot:{launchRouteProbe:{TOKEN:predicted,PAIR:ZERO}}});const config=await resolveInput(predicted,{...x,wallet});assert.equal(config.TOKEN,null);assert.equal(config.PREDICTED_TOKEN,predicted);assert.equal(config.PAIR,null);assert.equal(config.PHASE,phase);}});
 test('prelaunch route pair can be predicted while Reader actual pair is zero',async()=>{const x=setup({snapshot:{launchRouteProbe:{TOKEN:predicted,PAIR:pair}}});const config=await resolveInput(predicted,{...x,wallet});assert.equal(config.TOKEN,null);assert.equal(config.PAIR,pair);});
 test('a nonzero Reader pair must agree with the Probe route in every phase',async()=>{for(const phase of ['1','2','3']){const x=setup({phase,token:phase==='3'?predicted:ZERO,card:{pair},snapshot:{launchRouteProbe:{TOKEN:predicted,PAIR:quote}}});await assert.rejects(resolveInput(predicted,{...x,wallet}),/identity|mismatch/i);}});
+
+// Fresh operation context avoids repeating the full bound snapshot, but never trusts
+// a caller-supplied or mutated snapshot as a replacement for on-chain validation.
+import {inspectRoute} from '../src/route.mjs';
+test('verified resolver context avoids a second full route snapshot and preserves buy capacity',async()=>{
+ const x=setup();let snapshots=0,capacity=0;const original=x.rpc.snapshot;
+ x.rpc.snapshot=async(...args)=>{snapshots++;return {...await original(...args),block:'0x123',wallet,balance:1n};};
+ x.rpc.probe=async(c,w,name,args,block)=>{assert.equal(name,'buyCapacityProbe');assert.equal(block,'0x123');capacity++;return {fields:{ID:'1',ROOM_SHARES:'100',HELD_SHARES:'0'}};};
+ const context=await resolveInput(predicted,{...x,wallet,returnContext:true});
+ assert.equal(context.config.MARKET,market);assert.equal(context.snapshot.buyCapacityProbe.ROOM_SHARES,'100');
+ context.snapshot.phase='3'; // public display data must not mutate the branded snapshot.
+ const route=await inspectRoute({rpc:x.rpc,baw:{},config:context.config,wallet,context});
+ assert.equal(route.route,'NATIVE_INTERNAL');assert.equal(snapshots,1);assert.equal(capacity,1);
+});
+test('forged resolver context falls back to a real route snapshot',async()=>{
+ let reads=0;const rpc={snapshot:async()=>{reads++;return {phase:'2'};}};
+ const r=await inspectRoute({rpc,baw:{},config:setup().config,wallet,context:{config:setup().config,snapshot:{phase:'1'},resolvedAt:Date.now()}});
+ assert.equal(r.route,'UNAVAILABLE');assert.equal(reads,1);
+});
+test('resolver context expiry starts before reads, not after a slow resolution',async()=>{
+ const now=Date.now;let clock=now();Date.now=()=>clock;
+ try{const x=setup();const original=x.rpc.snapshot;let snapshots=0;
+ x.rpc.snapshot=async(...args)=>{snapshots++;if(snapshots===1){const s=await original(...args);clock+=15001;return {...s,block:'0x123'};}return {phase:'2'};};
+ x.rpc.probe=async()=>({fields:{ID:'1',ROOM_SHARES:'100',HELD_SHARES:'0'}});
+ const context=await resolveInput(predicted,{...x,wallet,returnContext:true});
+ const r=await inspectRoute({rpc:x.rpc,baw:{},config:context.config,wallet,context});
+ assert.equal(r.route,'UNAVAILABLE');assert.equal(snapshots,2);
+ }finally{Date.now=now;}
+});
+test('resolver batches independent binding reads instead of separate transports',async()=>{
+ const x=setup();const batches=[];x.rpc.batch=async calls=>{batches.push(calls);return Promise.all(calls.map(c=>x.rpc.call(c.method,c.params)));};
+ await resolveInput(predicted,{...x,wallet});assert.ok(batches.some(calls=>calls.length===5));assert.ok(batches.some(calls=>calls.length===2));
+});
+test('resolved context cannot cross wallet, RPC or altered CONFIG boundaries',async()=>{
+ for(const mode of ['wallet','rpc','config']){
+  const x=setup();x.rpc.probe=async()=>({fields:{ID:'1',ROOM_SHARES:'100',HELD_SHARES:'0'}});
+  const context=await resolveInput(predicted,{...x,wallet,returnContext:true});let reads=0;const fallback=async()=>{reads++;return {phase:'2'};};
+  const rpc=mode==='rpc'?{...x.rpc,snapshot:fallback}:x.rpc;rpc.snapshot=fallback;
+  const r=await inspectRoute({rpc,baw:{},config:mode==='config'?{...context.config,MARKET:quote}:context.config,wallet:mode==='wallet'?quote:wallet,context});
+  assert.equal(r.route,'UNAVAILABLE');assert.equal(reads,1);
+ }
+});

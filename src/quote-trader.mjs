@@ -3,14 +3,14 @@ import {validateBudget} from './route.mjs';import {json,fingerprint,keyOf} from 
 const active=o=>['PREPARING','SUBMITTING','UNKNOWN','PENDING','CONFIRMED_UNREADABLE'].includes(o.status);
 export class QuoteTrader {
  constructor({adapter,ledger,expectedWallet,onEvent=()=>{},allowQuoteConversion=false}){Object.assign(this,{adapter,ledger,expectedWallet,onEvent,allowQuoteConversion});}
- async prepare(config,{budget='1',slippageBps=100,wallet=this.expectedWallet}={}){
+ async prepare(config,{budget='1',slippageBps=100,wallet=this.expectedWallet,context}={}){
   validateBudget(budget,slippageBps);if(config.POOL_TYPE!=='ERC20')throw new Error('ERC20 pool required');
-  const s=await this.adapter.assess(config,wallet);if(s.phase!=='1')throw new Error('MARKET_NOT_OPEN');
+  const s=await this.adapter.assess(config,wallet,{context});if(s.phase!=='1')throw new Error('MARKET_NOT_OPEN');
   if(s.balanceRaw>0n)return {config,wallet,budget,slippageBps,snapshot:s,availableRaw:await this.adapter.capExisting(config,s,budget,slippageBps),funding:null};
   const funding=await this.adapter.planFunding(config,wallet,s,budget,slippageBps);if(validateBudget(funding.bnb,slippageBps)>validateBudget(budget,slippageBps))throw new Error('Funding exceeds intent budget');
   return {config,wallet,budget,slippageBps,snapshot:s,funding};
  }
- async buy(config,{requestId,budget='1',slippageBps=100,live=false,waitMs=30000,resume=false}={}){
+ async buy(config,{requestId,budget='1',slippageBps=100,live=false,waitMs=30000,resume=false,context}={}){
   if(!live)throw new Error('Explicit live execution flag required');validateBudget(budget,slippageBps);
   if(!/^[\w-]{1,96}$/.test(requestId||''))throw new Error('Unique request ID required');
   const who=await this.adapter.identity(),wallet=who.wallet;if(wallet!==this.expectedWallet)throw new Error('Wallet mismatch');
@@ -18,10 +18,11 @@ export class QuoteTrader {
    const state=await this.ledger.read(),intent=fingerprint({config:stableConfig(config),budget,slippageBps,wallet}),old=state.operations[requestId];
    if(old){if(old.intent!==intent)throw new Error('Request ID belongs to another intent');if(!resume||old.status!=='PREPARING'||!['FUNDED','APPROVAL_CONFIRMED'].includes(old.stage))return old;}
    if(Object.entries(state.operations).some(([id,o])=>id!==requestId&&o.wallet===wallet&&active(o)))throw new Error('Unresolved operation exists');
-   let op=old;
+   let op=old,initialAssessment;
    try{
     if(!op){
-     const p=await this.prepare(config,{budget,slippageBps,wallet});
+     const p=await this.prepare(config,{budget,slippageBps,wallet,context});
+     if(!p.funding)initialAssessment=p.snapshot;
      if(p.funding&&this.allowQuoteConversion!==true)throw new Error('Quote conversion not authorized by personal policy');
      op={workflow:'ERC20_V1',intent,status:'PREPARING',stage:'ASSESSED',wallet,config,budget,slippageBps,priorShares:p.snapshot.priorShares,availableRaw:p.availableRaw?.toString(),fundingCount:0};
      await this.patch(requestId,op);
@@ -38,7 +39,7 @@ export class QuoteTrader {
      }
     }
     op=await this.get(requestId);const limit=BigInt(op.availableRaw);
-    let plan=await this.adapter.planBuy(config,wallet,limit,slippageBps);
+    let plan=await this.adapter.planBuy(config,wallet,limit,slippageBps,{assessment:initialAssessment});
     if(plan.amountRaw<=0n||plan.amountRaw>limit)throw new Error('Actual quote balance/cap exceeded');
     if(plan.allowanceRaw<plan.amountRaw){
      const approval=await this.adapter.approval(config,wallet,limit);

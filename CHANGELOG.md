@@ -1,3 +1,9 @@
+# 0.1.4
+
+- Batch independent resolver bindings/metadata reads and reuse private, wallet/config/RPC-bound initial snapshots for up to 15 seconds. Existing quote-balance and sell planning avoid duplicate assessments; funding/approval paths refresh again.
+- Return confirmed outcomes immediately; persist deterministic portfolio jobs and run all-market statistics/archive repair in a separate forced-read-only worker. Add `portfolio-job` query/wait/resume, atomic job publication and dead statistics/recovery process handling.
+- Preserve maximum permitted internal shares, <=1 BNB principal, finite approval, authorized slippage, simulations, freshness, canonical receipts and no financial resubmission. No real transactions during release validation.
+
 # 0.1.3
 
 Automatically reconcile unknown ERC20 purchase basis during portfolio refresh using verified, bounded read-only archive RPC failover. Add the tested public NodeReal/Blockmachine/Alchemy sources, chain and frozen-head binding, availability-only switching, per-run immutable read cache, failure cooldown and atomic concurrent-ledger protection. Diagnostics hide custom RPC credentials, including credential-bearing hostnames. Known costs and offline reports skip archive work; missing proofs remain unknown. Trading execution and wallet submission/retry behavior are unchanged. Validation uses offline fixtures and read-only historical replay, never real trades.
