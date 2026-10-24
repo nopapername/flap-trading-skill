@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import {readFile,writeFile,mkdir,rename} from 'node:fs/promises';
 import {join,resolve} from 'node:path';import {randomUUID} from 'node:crypto';
-import {address,json,formatUnits,parseUnits,fingerprint} from './core.mjs';import {Rpc} from './rpc.mjs';import {Baw} from './wallet.mjs';import {Ledger} from './ledger.mjs';
-import {reconcileHistory} from './history.mjs';
+import {address,json,formatUnits,parseUnits} from './core.mjs';import {Rpc} from './rpc.mjs';import {Baw} from './wallet.mjs';import {Ledger} from './ledger.mjs';
+import {autoReconcileHistory} from './auto-history.mjs';
 import {reconcileAccounts} from './accounts.mjs';
 import {stateDirectory,initializePolicy,loadPolicy,authorizeTrade,requestIdentity} from './policy.mjs';
 import {resolveInput} from './resolver.mjs';import {inspectRoute} from './route.mjs';
@@ -15,14 +15,16 @@ const opt=(n,d)=>{const i=args.indexOf('--'+n);if(i<0)return d;if(!args[i+1]||ar
 const flag=n=>args.includes('--'+n),dir=resolve(opt('data-dir',stateDirectory())),emit=x=>console.log(json(x));
 async function save(name,value){await mkdir(dir,{recursive:true,mode:0o700});const p=join(dir,name),tmp=p+'.'+randomUUID()+'.tmp';await writeFile(tmp,json(value)+'\n',{mode:0o600});await rename(tmp,p);}
 async function report(rpc,ledger,wallet){
- const state=await ledger.read(),s=await loadPortfolio(rpc,state,wallet);s.wallet=wallet;s.balance=BigInt(await rpc.result('eth_getBalance',[wallet,s.block]));
+ const repair=await autoReconcileHistory({rpc,ledger,wallet}),state=repair.state,s=await loadPortfolio(rpc,state,wallet);s.wallet=wallet;s.balance=BigInt(await rpc.result('eth_getBalance',[wallet,s.block]));
+ s.historyReconciliation=repair.report.status==='not-needed'?state.historyReconciliation?.[wallet]||repair.report:repair.report;
+ if(repair.report.status!=='not-needed')await save('history-reconciliation-latest.json',repair.report);
  s.accounts=reconcileAccounts(state,wallet);s.quoteFundingBalances=state.quoteFundingBalances||{};s.cashSettlements=state.cashSettlements||[];
  await save('portfolio-latest.json',s);await writeFile(join(dir,'portfolio-latest.md'),renderPortfolio(s.rows,{...s,wallet,detail:flag('detail')}),{mode:0o600});
  if(flag('json'))emit(s);else{console.log(renderPortfolio(s.rows,{...s,wallet,detail:flag('detail')}));if(Object.values(s.quoteFundingBalances).some(x=>BigInt(x.quantityRaw)>0n))console.log('Separate quote-token funding balances remain; see portfolio --json. They are not market-token holdings.');}
 }
 async function main(){
  if(Number(process.versions.node.split('.')[0])<22)throw new Error('Node.js >=22 required');
- if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.2 (Node >=22; chain56)
+ if(cmd==='help'||cmd==='--help'){console.log(`Flap Trading Skill 0.1.3 (Node >=22; chain56)
 node src/cli.mjs init --wallet ADDRESS --budget BNB --slippage-bps 100 --mode read-only|confirm|auto
   [--allow-quote-conversion] [--allow-direct] [--ack-audit-unavailable]
 node src/cli.mjs doctor
@@ -71,11 +73,8 @@ Sell returns the market quote asset; no implicit conversion, claim or route chan
  const seller=new SellTrader({adapter:new SellAdapter({rpc,baw}),ledger,expectedWallet:wallet,onEvent});
  if(cmd==='accounts'){const a=reconcileAccounts(await ledger.read(),wallet);await save('accounts-latest.json',a);emit(a);return;}
  if(cmd==='reconcile-history'){
-  await ledger.withLock('wallet:56:'+wallet,async()=>{
-   const before=await ledger.read(),result=await reconcileHistory(rpc,before,wallet);
-   if(flag('apply'))await ledger.update(s=>{if(fingerprint(s)!==fingerprint(before))throw Error('Ledger changed during history verification');Object.assign(s,result.state);});
-   await save('history-reconciliation-latest.json',{...result.report,applied:flag('apply'),time:new Date().toISOString()});emit({...result.report,applied:flag('apply')});
-  });return;
+  const result=await autoReconcileHistory({rpc,ledger,wallet,force:true,apply:flag('apply')});
+  await save('history-reconciliation-latest.json',result.report);emit(result.report);return;
  }
  if(cmd==='operations'){emit(Object.entries((await ledger.read()).operations).map(([id,o])=>({id,workflow:o.workflow,status:o.status,stage:o.stage,market:o.config?.MARKET||o.prepared?.config?.MARKET,txHash:o.txHash||o.currentLeg?.result?.txHash,orderId:o.orderId||o.currentLeg?.result?.orderId})));return;}
  if(cmd==='portfolio'){await report(rpc,ledger,wallet);return;}

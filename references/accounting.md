@@ -8,6 +8,22 @@ Funding cost includes actual BNB principal plus funding Gas. Buys consume paymen
 
 `reconcile-history` performs read-only canonical evidence checks and reports recoverable funding chronology and purchase basis. Add `--apply` to atomically save verified repairs to the local ledger (never a wallet mutation). The command binds sender, calldata, block/hash/index, confirmations, exact token transfers, frozen inventory, finite approval Gas and historical balance anchors. Wallet quote-token transfer coverage excludes unregistered external movements, including net-neutral changes. Partial exits consume basis proportionally even when actual native proceeds remain unknown. Missing archival states/logs, missing Gas proofs or incomplete inventory origins preserve unknown costs and provide warnings. This is bounded evidence reconciliation, not complete wallet-history discovery. It does not guess source cost from today's price or treat an absent approval Gas field as zero.
 
+## Automatic archive reconciliation
+
+`portfolio` and post-confirmation portfolio refresh automatically reconcile wallet ERC20 share purchases marked `costUnknown`. Canonical funding, fills, finite approval expense, historical inventory anchors and complete owner Transfer coverage remain mandatory. No wallet calls are used for reconciliation. Known-cost portfolios skip archive queries; offline snapshots never access RPC. Other unknowns, including unproven native cash proceeds, are not guessed by this feature.
+
+The read-only archive pool starts with the configured primary RPC and then uses these publicly documented/validated endpoints:
+
+- NodeReal: `https://bsc-mainnet.nodereal.io/v1/64a9df0874fb4a93b9d0a3849de012d3` — [provider's deliberately public shareable endpoint](https://docs.nodereal.io/reference/getting-started-with-your-api), not a user's private API key.
+- Blockmachine: `https://rpc-bnb.blockmachine.io` — [BNB Chain endpoint list](https://docs.bnbchain.org/bnb-smart-chain/developers/json_rpc/json-rpc-endpoint/).
+- Alchemy: `https://bnb-mainnet.g.alchemy.com/public` — [provider's public BNB endpoint](https://www.alchemy.com/rpc/bnb).
+
+The primary must supply chain ID 56 and a valid head. The head is frozen for each reconciliation; every fallback must agree on that exact block hash. Availability failures (missing/pruned history, HTTP limits, denied access, timeout, unsupported/range-limited methods or malformed responses) can switch endpoints. Contract reverts and proof mismatches do not trigger a search for a passing answer. All RPC calls are read-only and canonical receipt checks are unchanged. These providers' future archive coverage or availability is not guaranteed.
+
+Defaults: 300 underlying reads, 120-second wall budget, 15 seconds per read, 30-second per-method failure cooldown. Successful immutable reads share an in-memory cache for that run; pending/null/latest responses are not cached. No cache is copied between runs. Automatic unchanged failures back off for five minutes; new ledger evidence retries immediately and explicit `reconcile-history --apply` bypasses this backoff. Verified repairs use the wallet lock plus exact ledger-version comparison, so a simultaneous trade/store update cannot be overwritten. Archive failures preserve unknown costs and do not resubmit or change a confirmed trade.
+
+`history-reconciliation-latest.json` and portfolio JSON contain sanitized source labels, call/cache counts, read/time limits, elapsed time, exhaustion reason and proof warnings. Built-in sources use their public hostnames; custom sources use `custom-N`, hiding paths, query strings and credential-bearing subdomains. Never paste private RPC credentials into chat, public files or logs. `FLAP_ARCHIVE_RPC_URLS` optionally supplies a JSON array of at most ten HTTPS URLs; `[]` limits archive reads to the primary. Configuration is separate from transaction execution RPC (`FLAP_RPC_URL`); archive fallbacks are never used to retry/sign/submit wallet transactions.
+
 ## Estimated exit Gas
 
 Native internal-sale Gas uses pinned `eth_call` and `eth_estimateGas`. ERC20 internal exits add an estimated payment-token-to-BNB leg; already received launched tokens use that estimate alone. No sell, approval, signing or wallet preview is executed to estimate it.

@@ -1,3 +1,11 @@
+# Validation — v0.1.3
+
+Source suite: 190/190. Includes 13 archive-pool tests (availability switching, wrong chain/head, execution-revert refusal, budgets, cooldown, immutable-cache isolation, singleflight, null/pending behavior and credential redaction) and six automatic-reconciliation tests (repair, skip, backoff, evidence changes, dry runs and concurrent ledger protection). Canonical history proof regressions remain unchanged in behavior.
+
+Read-only historical replay in an isolated pre-repair state automatically recovered the same exact purchase basis as the independently verified manual reconciliation, with no proof warnings; the next pass skipped archive work. This replay used public archival reads and existing confirmed records, not new transactions. Personal inputs, wallet addresses, hashes and amounts are not included in the release. Source validation and release scan passed (71 checked files); independent review passed. Clean packaged tests: 190/190 after isolated unpack and locked dependency installation. Synthetic first-use acceptance: 17/17, walletMutations=0. Personal-tool compatibility tests: 66/66.
+
+No wallet transactions, signatures, approvals, transfers, claims, sells or settings changes were performed during this update. Automatic reconciliation runs only during online portfolio refresh and retains unknowns when evidence is missing. GitHub-hosted CI remains unenabled; reported checks are local.
+
 # Validation — v0.1.2
 
 Source suite: 171/171, including 30 historical proof regressions, four exit-Gas tests, current/history partition and offline migration. Release validation uses FLAP_READ_ONLY=1 and synthetic execution boundaries; no real transactions, signatures, approvals, transfers, sales or settings changes.

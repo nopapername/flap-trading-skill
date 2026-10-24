@@ -1,3 +1,7 @@
+# 0.1.3
+
+Automatically reconcile unknown ERC20 purchase basis during portfolio refresh using verified, bounded read-only archive RPC failover. Add the tested public NodeReal/Blockmachine/Alchemy sources, chain and frozen-head binding, availability-only switching, per-run immutable read cache, failure cooldown and atomic concurrent-ledger protection. Diagnostics hide custom RPC credentials, including credential-bearing hostnames. Known costs and offline reports skip archive work; missing proofs remain unknown. Trading execution and wallet submission/retry behavior are unchanged. Validation uses offline fixtures and read-only historical replay, never real trades.
+
 # 0.1.2
 
 Separate verified zero balances into historical holdings in live, JSON and offline snapshots. Add provenance-labelled exit Gas estimates using recent canonical wallet token-call receipts repriced at current Gas with explicit margin and approval provision. Add bounded read-only historical funding/pooled-basis reconciliation with canonical receipts, balance anchors, transfer coverage and finite approval proof. Missing evidence continues to show unknown, including unresolved native cash proceeds. No real wallet mutations during this release's implementation or validation.
